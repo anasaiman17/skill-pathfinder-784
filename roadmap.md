@@ -6,3 +6,5 @@
 - [x] Connect local profile, target role, recommendations, and learning progress interactions
 - [x] Match the selected bright editorial Skillwise direction
 - [x] Validate responsive rendering and build health
+- [x] Add email registration and sign-in while keeping profile data local
+- [x] Remove the Local mode homepage label
