@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   ArrowRight,
   ArrowUpRight,
@@ -257,11 +257,11 @@ function Index() {
         </button>
         <nav className="hidden items-center gap-7 text-sm font-semibold text-ink/65 md:flex" aria-label="Primary navigation">
           {navItems.slice(0, 2).map((item) => <Button key={item.id} variant="ghost" onClick={() => goTo(item.id)} className={`h-auto p-0 text-ink/65 hover:bg-transparent hover:text-ink ${section === item.id ? "text-ink" : ""}`}>{item.label}</Button>)}
-          <span className="flex items-center gap-2 rounded-full border border-ink/10 px-3 py-1.5 text-xs text-ink/60"><span className="h-1.5 w-1.5 rounded-full bg-mint" /> Local mode</span>
+           <Button asChild variant="outline" className="h-9 rounded-lg border-ink/15 bg-transparent px-4 text-ink hover:bg-card"><Link to="/auth">Sign in</Link></Button>
           <Button variant="outline" onClick={() => goTo("profile")} className="h-9 rounded-lg border-ink/15 bg-transparent px-4 text-ink hover:bg-card">Open profile</Button>
         </nav>
         <Button aria-label="Open navigation" variant="ghost" size="icon" className="text-ink md:hidden" onClick={() => setMobileMenu((open) => !open)}><Menu /></Button>
-        {mobileMenu && <nav className="absolute left-5 right-5 top-[72px] flex flex-col gap-2 rounded-xl border border-ink/10 bg-card p-3 shadow-xl md:hidden" aria-label="Mobile navigation">{navItems.map((item) => <Button key={item.id} variant="ghost" onClick={() => goTo(item.id)} className="justify-start text-ink">{item.label}</Button>)}<Button variant="outline" onClick={resetLocalData} className="justify-start text-ink"><RotateCcw /> Reset local data</Button></nav>}
+         {mobileMenu && <nav className="absolute left-5 right-5 top-[72px] flex flex-col gap-2 rounded-xl border border-ink/10 bg-card p-3 shadow-xl md:hidden" aria-label="Mobile navigation">{navItems.map((item) => <Button key={item.id} variant="ghost" onClick={() => goTo(item.id)} className="justify-start text-ink">{item.label}</Button>)}<Button asChild variant="outline" className="justify-start text-ink"><Link to="/auth">Sign in</Link></Button><Button variant="outline" onClick={resetLocalData} className="justify-start text-ink"><RotateCcw /> Reset local data</Button></nav>}
       </header>
 
       {notice && <div role="status" className="fixed right-5 top-5 z-50 flex max-w-sm items-center gap-2 rounded-lg bg-ink px-4 py-3 text-sm text-ink-foreground shadow-xl"><CircleCheck className="h-4 w-4 text-cyan" />{notice}</div>}
