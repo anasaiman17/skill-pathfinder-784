@@ -47,7 +47,7 @@ export const Route = createFileRoute("/")({
 
 type Section = "overview" | "profile" | "analysis" | "roadmap";
 type ResourceStatus = "not-started" | "in-progress" | "completed";
-type RoleKey = "Data Analyst" | "Data Scientist" | "ML Engineer" | "Software Developer";
+type RoleKey = keyof typeof roleCatalog;
 type Requirement = { skill: string; level: string; weight: number };
 
 type Profile = {
@@ -67,40 +67,116 @@ type Resource = { id: string; title: string; provider: string; type: string; ski
 
 const STORAGE_KEY = "skillwise-local-state-v1";
 
-const roleRequirements: Record<RoleKey, Requirement[]> = {
-  "Data Analyst": [
-    { skill: "SQL", level: "Intermediate", weight: 1.2 },
-    { skill: "Excel", level: "Intermediate", weight: 0.8 },
-    { skill: "Statistics", level: "Intermediate", weight: 1 },
-    { skill: "Python", level: "Beginner", weight: 0.9 },
-    { skill: "Tableau", level: "Beginner", weight: 0.8 },
-    { skill: "Data storytelling", level: "Intermediate", weight: 0.7 },
-  ],
-  "Data Scientist": [
-    { skill: "Python", level: "Advanced", weight: 1.2 },
-    { skill: "Statistics", level: "Advanced", weight: 1.1 },
-    { skill: "Machine learning", level: "Intermediate", weight: 1.2 },
-    { skill: "SQL", level: "Intermediate", weight: 0.8 },
-    { skill: "Pandas", level: "Intermediate", weight: 0.9 },
-    { skill: "TensorFlow", level: "Beginner", weight: 0.7 },
-  ],
-  "ML Engineer": [
-    { skill: "Python", level: "Advanced", weight: 1.1 },
-    { skill: "Machine learning", level: "Advanced", weight: 1.2 },
-    { skill: "Docker", level: "Intermediate", weight: 1 },
-    { skill: "TensorFlow", level: "Intermediate", weight: 1 },
-    { skill: "SQL", level: "Beginner", weight: 0.6 },
-    { skill: "Cloud deployment", level: "Beginner", weight: 0.8 },
-  ],
-  "Software Developer": [
-    { skill: "JavaScript", level: "Intermediate", weight: 1.1 },
-    { skill: "React", level: "Intermediate", weight: 1 },
-    { skill: "Git", level: "Intermediate", weight: 0.8 },
-    { skill: "Testing", level: "Beginner", weight: 0.8 },
-    { skill: "APIs", level: "Intermediate", weight: 0.9 },
-    { skill: "SQL", level: "Beginner", weight: 0.6 },
-  ],
-};
+const roleCatalog = {
+  "IT Support Engineer": ["Windows", "Hardware", "Networking", "Troubleshooting", "Ticketing"],
+  "Help Desk Technician": ["Windows", "Hardware", "Networking", "Customer Support", "Troubleshooting"],
+  "Desktop Support Engineer": ["Windows", "Active Directory", "Hardware", "Networking", "Troubleshooting"],
+  "System Administrator": ["Linux", "Windows Server", "Networking", "Active Directory", "PowerShell", "Bash"],
+  "Linux Administrator": ["Linux", "Bash", "Networking", "SSH", "Systemd", "Security"],
+  "Windows Administrator": ["Windows Server", "Active Directory", "DNS", "DHCP", "PowerShell"],
+  "Infrastructure Engineer": ["Linux", "Windows Server", "Networking", "Virtualization", "Cloud"],
+  "Infrastructure Architect": ["Networking", "Servers", "Cloud", "Virtualization", "Architecture"],
+  "Network Administrator": ["TCP/IP", "Routing", "Switching", "VLAN", "DNS", "DHCP"],
+  "Network Engineer": ["TCP/IP", "Routing", "Switching", "VLAN", "OSPF", "BGP", "Firewalls"],
+  "Network Architect": ["Network Design", "Routing", "Switching", "Security", "Cloud Networking"],
+  "NOC Engineer": ["Networking", "Monitoring", "TCP/IP", "Troubleshooting", "Incident Management"],
+  "Network Security Engineer": ["Firewalls", "VPN", "IDS/IPS", "TCP/IP", "Network Security"],
+  "Cloud Engineer": ["AWS", "Azure", "Google Cloud", "Linux", "Networking", "IAM", "Terraform", "Docker"],
+  "Cloud Administrator": ["AWS", "Azure", "Google Cloud", "IAM", "Virtual Machines", "Storage", "Networking"],
+  "Cloud Architect": ["Cloud Architecture", "Networking", "Security", "IAM", "Scalability", "Terraform"],
+  "Cloud Security Engineer": ["Cloud Security", "IAM", "Networking", "Encryption", "Security Monitoring"],
+  "Cloud Network Engineer": ["VPC/VNet", "Routing", "VPN", "DNS", "Load Balancing", "Firewalls"],
+  "DevOps Engineer": ["Linux", "Git", "CI/CD", "Docker", "Kubernetes", "Terraform", "Cloud"],
+  "DevSecOps Engineer": ["DevOps", "Security", "CI/CD", "Docker", "Kubernetes", "SAST/DAST"],
+  "Site Reliability Engineer": ["Linux", "Cloud", "Kubernetes", "Monitoring", "Automation", "Python"],
+  "Platform Engineer": ["Cloud", "Kubernetes", "Terraform", "CI/CD", "Linux", "Automation"],
+  "Kubernetes Engineer": ["Kubernetes", "Docker", "Helm", "Linux", "Networking", "Terraform"],
+  "Automation Engineer": ["Python", "Bash", "PowerShell", "Ansible", "APIs", "Automation"],
+  "Software Developer": ["Programming", "OOP", "Git", "SQL", "APIs", "Debugging"],
+  "Software Engineer": ["Programming", "DSA", "OOP", "Git", "System Design", "Databases"],
+  "Frontend Developer": ["HTML", "CSS", "JavaScript", "React", "Angular", "Vue", "Git"],
+  "Backend Developer": ["Java", "Python", "Node.js", "APIs", "SQL", "Databases", "Git"],
+  "Full Stack Developer": ["HTML", "CSS", "JavaScript", "React", "Backend", "SQL", "APIs"],
+  "Web Developer": ["HTML", "CSS", "JavaScript", "Web Frameworks", "Git"],
+  "Java Developer": ["Java", "Spring Boot", "SQL", "REST APIs", "Git", "OOP"],
+  "Python Developer": ["Python", "Django", "Flask", "FastAPI", "SQL", "APIs", "Git"],
+  ".NET Developer": ["C#", ".NET", "ASP.NET", "SQL", "REST APIs", "Git"],
+  "C++ Developer": ["C++", "OOP", "DSA", "STL", "Multithreading", "Git"],
+  "Mobile App Developer": ["Kotlin", "Java", "Android", "APIs", "Databases", "Git"],
+  "Application Developer": ["Programming", "SQL", "APIs", "SDLC", "Debugging"],
+  "Software Architect": ["System Design", "Architecture", "Microservices", "Cloud", "Security"],
+  "Database Administrator": ["SQL", "Backup/Recovery", "Database Security", "Performance Tuning"],
+  "Database Engineer": ["SQL", "Database Design", "Performance", "Replication", "Cloud"],
+  "Data Analyst": ["SQL", "Excel", "Power BI", "Tableau", "Statistics", "Data Visualization"],
+  "Data Engineer": ["Python", "SQL", "ETL", "Spark", "Kafka", "Airflow", "Cloud"],
+  "Data Scientist": ["Python", "Statistics", "Machine Learning", "SQL", "Pandas"],
+  "Data Architect": ["Data Modeling", "SQL", "Cloud", "Data Warehousing", "Architecture"],
+  "BI Developer": ["SQL", "Power BI", "Tableau", "Data Modeling", "ETL"],
+  "Big Data Engineer": ["Python", "Scala", "Spark", "Hadoop", "Kafka", "SQL"],
+  "Machine Learning Engineer": ["Python", "Machine Learning", "TensorFlow", "PyTorch", "SQL", "MLOps"],
+  "ML Engineer": ["Python", "Machine Learning", "Docker", "TensorFlow", "SQL", "Cloud"],
+  "AI Engineer": ["Python", "Machine Learning", "Deep Learning", "APIs", "Cloud"],
+  "Generative AI Engineer": ["Python", "LLMs", "RAG", "APIs", "Vector Databases", "Prompt Engineering"],
+  "NLP Engineer": ["Python", "NLP", "Transformers", "LLMs", "Deep Learning"],
+  "Computer Vision Engineer": ["Python", "OpenCV", "Deep Learning", "Computer Vision"],
+  "MLOps Engineer": ["Python", "Machine Learning", "Docker", "Kubernetes", "CI/CD", "Cloud"],
+  "Cybersecurity Analyst": ["Networking", "Linux", "SIEM", "Threat Analysis", "Incident Response"],
+  "SOC Analyst": ["SIEM", "Networking", "Linux", "Log Analysis", "Incident Response"],
+  "Security Engineer": ["Firewalls", "IAM", "IDS/IPS", "Encryption", "Linux"],
+  "Cybersecurity Engineer": ["Network Security", "Cloud Security", "IAM", "SIEM", "Vulnerability Management"],
+  "Security Architect": ["Security Architecture", "Cloud", "Networking", "Zero Trust", "IAM"],
+  "Penetration Tester": ["Linux", "Networking", "Nmap", "Burp Suite", "OWASP", "Web Security"],
+  "Ethical Hacker": ["Linux", "Networking", "Vulnerability Testing", "OWASP", "Security Tools"],
+  "Incident Response Analyst": ["SIEM", "Forensics", "Malware Analysis", "Incident Response"],
+  "Vulnerability Analyst": ["Vulnerability Scanning", "CVE", "Risk Assessment", "Security Tools"],
+  "IAM Engineer": ["Active Directory", "Entra ID", "IAM", "SSO", "MFA", "RBAC"],
+  "Application Security Engineer": ["OWASP", "Secure Coding", "SAST", "DAST", "DevSecOps"],
+  "GRC Analyst": ["Risk Management", "ISO 27001", "NIST", "Compliance", "Auditing"],
+  "IT Auditor": ["IT Controls", "Risk", "Compliance", "Auditing", "Cybersecurity"],
+  "QA Engineer": ["Manual Testing", "Automation", "SDLC", "Test Cases", "Bug Tracking"],
+  "Manual Tester": ["Functional Testing", "Regression Testing", "Test Cases", "Bug Tracking"],
+  "Automation Tester": ["Selenium", "Playwright", "Cypress", "Java", "Python", "JavaScript", "API Testing"],
+  "Performance Tester": ["JMeter", "Load Testing", "Performance Analysis", "Monitoring"],
+  "API Tester": ["REST APIs", "Postman", "SQL", "Automation", "HTTP"],
+  "Test Lead": ["Test Strategy", "Automation", "QA", "Agile", "Leadership"],
+  "Business Analyst": ["Requirements", "SQL", "Excel", "Documentation", "Communication"],
+  "Systems Analyst": ["Systems Analysis", "SQL", "Requirements", "Documentation"],
+  "IT Consultant": ["IT Architecture", "Business Analysis", "Cloud", "Communication"],
+  "Technical Consultant": ["Technical Architecture", "Cloud", "Networking", "Troubleshooting"],
+  "IT Project Manager": ["Project Management", "Agile", "Scrum", "Planning", "Communication"],
+  "Scrum Master": ["Scrum", "Agile", "Facilitation", "Leadership", "Communication"],
+  "Product Manager": ["Product Strategy", "Agile", "Analytics", "Communication", "Leadership"],
+  "IT Manager": ["IT Operations", "Infrastructure", "Security", "Leadership", "Budgeting"],
+  "IT Service Desk Analyst": ["ITIL", "Ticketing", "Troubleshooting", "Windows", "Communication"],
+  "IT Operations Engineer": ["Linux", "Windows", "Networking", "Monitoring", "Automation"],
+  "Application Support Engineer": ["SQL", "Linux", "Application Troubleshooting", "APIs", "Monitoring"],
+  "Release Engineer": ["Git", "CI/CD", "Jenkins", "Automation", "Deployment"],
+  "Build Engineer": ["Git", "Build Systems", "CI/CD", "Scripting", "Automation"],
+  "Systems Engineer": ["Linux", "Windows", "Networking", "Virtualization", "Cloud"],
+  "Virtualization Engineer": ["VMware", "Hyper-V", "Virtual Machines", "Networking", "Storage"],
+  "VMware Administrator": ["VMware vSphere", "ESXi", "vCenter", "Storage", "Networking"],
+  "Hardware Engineer": ["Computer Hardware", "Electronics", "Troubleshooting", "Networking"],
+  "IT Hardware Technician": ["Hardware", "Windows", "Networking", "Troubleshooting"],
+  "UI Designer": ["Figma", "UI Design", "Typography", "Visual Design"],
+  "UX Designer": ["UX Research", "Wireframing", "Prototyping", "Figma"],
+  "UI/UX Designer": ["Figma", "UX", "UI", "Prototyping", "User Research"],
+  "Product Designer": ["UI/UX", "Figma", "User Research", "Product Thinking"],
+  "Game Developer": ["C++", "C#", "Unity", "Unreal", "Game Physics", "3D"],
+  "IoT Engineer": ["Embedded Systems", "C/C++", "Python", "Networking", "Sensors"],
+  "Robotics Engineer": ["Python", "C++", "Robotics", "ROS", "Computer Vision"],
+  "Blockchain Developer": ["Solidity", "Ethereum", "Web3", "JavaScript", "Smart Contracts"],
+  "ERP Consultant": ["ERP Systems", "Business Processes", "SQL", "Configuration"],
+  "SAP Consultant": ["SAP", "Business Processes", "SQL", "Configuration"],
+  "Technical Writer": ["Documentation", "Technical Knowledge", "Communication", "Markdown"],
+  "Solutions Architect": ["Cloud", "System Design", "Networking", "Security", "APIs"],
+  "Enterprise Architect": ["Architecture", "Cloud", "IT Strategy", "Security", "Governance"],
+  "CTO": ["Technology Strategy", "Architecture", "Leadership", "Business"],
+  "CIO": ["IT Strategy", "Governance", "Leadership", "Risk Management"],
+} as const;
+
+const roleRequirements = Object.fromEntries(
+  Object.entries(roleCatalog).map(([role, skills]) => [role, skills.map((skill, index) => ({ skill, level: index < 2 ? "Intermediate" : "Beginner", weight: index < 2 ? 1.2 : 1 }))]),
+) as Record<RoleKey, Requirement[]>;
 
 const resources: Resource[] = [
   { id: "sql", title: "SQL for Data Analysis", provider: "DataCamp", type: "Course", skill: "SQL", duration: "6 weeks", accent: "teal" },
@@ -112,6 +188,8 @@ const resources: Resource[] = [
   { id: "docker", title: "Docker Foundations", provider: "Docker", type: "Course", skill: "Docker", duration: "2 weeks", accent: "amber" },
   { id: "storytelling", title: "Data Visualization & Storytelling", provider: "LinkedIn Learning", type: "Course", skill: "Data storytelling", duration: "2 weeks", accent: "coral" },
 ];
+
+const coreSkillNames = Array.from(new Set(Object.values(roleCatalog).flat()));
 
 const defaultProfile: AppState = {
   name: "Alex Morgan",
@@ -126,14 +204,20 @@ const defaultProfile: AppState = {
   resourceStatuses: {},
 };
 
-const skillAliases: Record<string, string> = {
-  "python programming": "Python", python: "Python", sql: "SQL", "structured query language": "SQL",
-  excel: "Excel", statistics: "Statistics", pandas: "Pandas", tableau: "Tableau", javascript: "JavaScript",
-  typescript: "TypeScript", react: "React", git: "Git", docker: "Docker", tensorflow: "TensorFlow",
-  "machine learning": "Machine learning", ml: "Machine learning", "data storytelling": "Data storytelling",
-  apis: "APIs", testing: "Testing", "cloud deployment": "Cloud deployment", communication: "Communication",
-  "project management": "Project management",
-};
+const skillAliases: Record<string, string> = Object.fromEntries([
+  ...coreSkillNames.map((skill) => [skill.toLowerCase(), skill]),
+  ["python programming", "Python"], ["structured query language", "SQL"], ["js", "JavaScript"],
+  ["ts", "TypeScript"], ["power bi/tableau", "Power BI"], ["powerbi", "Power BI"], ["google cloud platform", "Google Cloud"],
+  ["gcp", "Google Cloud"], ["amazon web services", "AWS"], ["microsoft azure", "Azure"], ["k8s", "Kubernetes"],
+  ["continuous integration", "CI/CD"], ["continuous delivery", "CI/CD"], ["machine learning", "Machine Learning"],
+  ["ml", "Machine Learning"], ["apis", "APIs"], ["rest api", "REST APIs"], ["rest apis", "REST APIs"],
+  ["node", "Node.js"], ["node js", "Node.js"], [".net", ".NET"], ["c sharp", "C#"], ["c plus plus", "C++"],
+  ["active-directory", "Active Directory"], ["ad", "Active Directory"], ["power shell", "PowerShell"],
+  ["data visualization", "Data Visualization"], ["data storytelling", "Data storytelling"], ["customer service", "Customer Support"],
+  ["troubleshooting", "Troubleshooting"], ["object oriented programming", "OOP"], ["data structures and algorithms", "DSA"],
+  ["artificial intelligence", "AI"], ["large language models", "LLMs"], ["vector database", "Vector Databases"],
+  ["penetration testing", "Penetration Testing"], ["incident response", "Incident Response"], ["test automation", "Automation"],
+] as const);
 
 function normalizeSkill(value: string) {
   return skillAliases[value.trim().toLowerCase()] ?? value.trim();
@@ -141,7 +225,7 @@ function normalizeSkill(value: string) {
 
 function extractSkills(text: string) {
   const lower = text.toLowerCase();
-  return Array.from(new Set(Object.entries(skillAliases).filter(([alias]) => lower.includes(alias)).map(([, skill]) => skill)));
+  return Array.from(new Set(Object.entries(skillAliases).filter(([alias]) => new RegExp(`(^|[^a-z0-9+#.-])${alias.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?=$|[^a-z0-9+#.-])`, "i").test(lower)).map(([, skill]) => skill)));
 }
 
 function readLocalState(): AppState {
