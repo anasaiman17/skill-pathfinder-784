@@ -66,20 +66,10 @@ function AuthPage() {
       : await supabase.auth.signUp({
           email,
           password,
-          options: { emailRedirectTo: window.location.origin },
         });
 
     if (result.error) {
       setError(result.error.message);
-      setBusy(false);
-      return;
-    }
-
-    if (mode === "register" && !result.data.session) {
-      setMessage("Your account was created. Check your email to confirm it, then sign in.");
-      setMode("signin");
-      setPassword("");
-      setConfirmPassword("");
       setBusy(false);
       return;
     }
