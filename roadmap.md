@@ -8,3 +8,8 @@
 - [x] Validate responsive rendering and build health
 - [x] Add email registration and sign-in while keeping profile data local
 - [x] Remove the Local mode homepage label
+- [ ] Expand the local analyzer into a complete IT career platform flow
+- [ ] Add profile completion, skills proficiency, resume verification, and account settings
+- [ ] Add searchable/filterable IT jobs, job details, matching, recommendations, and saved jobs
+- [ ] Persist user-separated platform data and protect the complete account flow
+- [ ] Test registration, login, profile, resume, job search, matching, saved jobs, logout, and login-again flows
