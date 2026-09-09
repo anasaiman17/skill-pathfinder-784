@@ -1,9 +1,9 @@
 export type ParsedResume = {
   text: string
-  name?: string
-  email?: string
-  phone?: string
-  education?: string
+  name: string | undefined
+  email: string | undefined
+  phone: string | undefined
+  education: string | undefined
   certifications: string[]
   jobTitles: string[]
   projects: string[]
