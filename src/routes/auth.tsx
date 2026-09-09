@@ -94,6 +94,10 @@ function AuthPage() {
 
     if (mode === "signin" && !rememberMe) {
       window.sessionStorage.setItem("skillwise-session-only", "true");
+      window.localStorage.setItem("skillwise-session-only", "true");
+    } else if (mode === "signin") {
+      window.sessionStorage.removeItem("skillwise-session-only");
+      window.localStorage.removeItem("skillwise-session-only");
     }
     void navigate({ to: "/" });
     setBusy(false);

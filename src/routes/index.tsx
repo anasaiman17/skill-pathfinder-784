@@ -72,7 +72,7 @@ function Index() {
   const [profileSaved, setProfileSaved] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => { let active = true; void supabase.auth.getUser().then(({ data }) => { if (!active) return; const user = data.user; if (user) { setUserId(user.id); setAccountEmail(user.email ?? ""); setWorkspace(readWorkspace(user.id)); } }); return () => { active = false; }; }, []);
+  useEffect(() => { let active = true; void supabase.auth.getUser().then(async ({ data }) => { if (!active) return; const user = data.user; if (user) { const sessionOnly = window.localStorage.getItem("skillwise-session-only") === "true"; if (sessionOnly && window.sessionStorage.getItem("skillwise-session-only") !== "true") { await supabase.auth.signOut(); return; } const stored = readWorkspace(user.id); const metadata = user.user_metadata as { full_name?: string; phone?: string } | undefined; setUserId(user.id); setAccountEmail(user.email ?? ""); setWorkspace({ ...stored, profile: { ...stored.profile, fullName: stored.profile.fullName || metadata?.full_name || "", phone: stored.profile.phone || metadata?.phone || "" } }); } }); return () => { active = false; }; }, []);
   useEffect(() => { if (userId) window.localStorage.setItem(STORAGE_PREFIX + userId, JSON.stringify(workspace)); }, [userId, workspace]);
 
   const allSkills = useMemo(() => Array.from(new Set([...workspace.skills.map((skill) => skill.name), ...(workspace.resume.parsed ? Object.keys(skillAliases).filter((alias) => workspace.resume.parsed?.text.toLowerCase().includes(alias)).map((alias) => normalizeSkill(alias)) : [])])), [workspace.skills, workspace.resume.parsed]);
