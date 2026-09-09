@@ -11,6 +11,7 @@ import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
 import { allCatalogSkills, categories, experienceLevels, jobs, roleCatalog, type ExperienceLevel, type JobCategory, type JobRecord } from "@/lib/career-catalog";
 import { extractResumeText, inspectResumeText, type ParsedResume } from "@/lib/resume-parser";
+import { analyzeResume } from "@/lib/local-ai";
 
 export const Route = createFileRoute("/")({
   head: () => ({ meta: [
