@@ -119,10 +119,10 @@ function AuthPage() {
         <section className="max-w-lg">
           <div className="mb-6 flex items-center gap-2 text-[0.68rem] font-bold uppercase tracking-[0.2em] text-cyan"><span className="h-2 w-2 rounded-full bg-cyan" /> Keep your momentum</div>
           <h1 className="font-display text-4xl font-extrabold leading-tight tracking-tight text-ink md:text-6xl">Your next move, all in one place.</h1>
-          <p className="mt-6 max-w-md text-base leading-7 text-ink/60">Create an account to access Skillwise whenever you need it. Your career planning details still stay on this device.</p>
+           <p className="mt-6 max-w-md text-base leading-7 text-ink/60">Create an account to keep your career workspace ready whenever you need it.</p>
           <div className="mt-9 space-y-4 text-sm text-ink/65">
             <div className="flex items-center gap-3"><CheckCircle2 className="h-5 w-5 text-cyan" /> Sign in from any session</div>
-            <div className="flex items-center gap-3"><CheckCircle2 className="h-5 w-5 text-cyan" /> Keep your account separate from your profile data</div>
+             <div className="flex items-center gap-3"><CheckCircle2 className="h-5 w-5 text-cyan" /> Keep your career workspace tied to your account</div>
             <div className="flex items-center gap-3"><CheckCircle2 className="h-5 w-5 text-cyan" /> Return to your skill roadmap in one click</div>
           </div>
         </section>
