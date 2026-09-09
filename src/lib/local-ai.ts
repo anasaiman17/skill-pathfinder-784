@@ -25,7 +25,7 @@ function countMentions(haystack: string, term: string) {
 }
 
 function levelFor(term: string, text: string, mentions: number): DetectedSkill["level"] {
-  const window = new RegExp(`.{0,80}${escape(term.toLowerCase())}.{0,80}`, "g")
+  const window = new RegExp(`.{0,40}${escape(term.toLowerCase())}.{0,40}`, "g")
   const context = (text.match(window) ?? []).join(" ")
   const years = Number(context.match(/(\d{1,2})\s*\+?\s*(?:years?|yrs?)/)?.[1] ?? 0)
   if (/expert|architect|lead|principal|\b(?:[6-9]|1\d)\s*\+?\s*(?:years?|yrs?)/.test(context) || years >= 6) return "Expert"
