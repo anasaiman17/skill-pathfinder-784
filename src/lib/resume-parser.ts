@@ -26,6 +26,54 @@ export function inspectResumeText(text: string): ParsedResume {
   return { text, name, email, phone, education, certifications, jobTitles, projects }
 }
 
+async function readPdf(file: File): Promise<string> {
+  const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs")
+  const workerUrl = (await import("pdfjs-dist/legacy/build/pdf.worker.min.mjs?url")).default
+  pdfjs.GlobalWorkerOptions.workerSrc = workerUrl
+  const data = new Uint8Array(await file.arrayBuffer())
+  const document = await pdfjs.getDocument({ data }).promise
+  const pages: string[] = []
+  for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
+    const page = await document.getPage(pageNumber)
+    const content = await page.getTextContent()
+    let line = ""
+    let lastY: number | null = null
+    const parts: string[] = []
+    for (const item of content.items) {
+      if (!("str" in item)) continue
+      const y = Array.isArray(item.transform) ? Number(item.transform[5]) : null
+      if (lastY !== null && y !== null && Math.abs(y - lastY) > 4) {
+        parts.push(line.trim())
+        line = ""
+      }
+      line += item.str + (item.hasEOL ? "\n" : " ")
+      lastY = y
+    }
+    parts.push(line.trim())
+    pages.push(parts.filter(Boolean).join("\n"))
+  }
+
+  return pages.join("\n")
+}
+
+function readLegacyDoc(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer)
+  let out = ""
+  for (let index = 0; index < bytes.length; index += 1) {
+    const code = bytes[index] as number
+    if (code === 13 || code === 10) out += "\n"
+    else if (code >= 32 && code <= 126) out += String.fromCharCode(code)
+    else if (code === 0 && bytes[index + 1] !== 0) continue
+    else out += " "
+  }
+  return out
+    .replace(/[^\S\n]{2,}/g, " ")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 1 && /[A-Za-z]{2,}/.test(line))
+    .join("\n")
+}
+
 export async function extractResumeText(file: File): Promise<string> {
   const extension = file.name.split(".").pop()?.toLowerCase()
   if (extension === "docx") {
@@ -33,16 +81,7 @@ export async function extractResumeText(file: File): Promise<string> {
     const result = await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() })
     return result.value
   }
-  if (extension === "pdf") {
-    const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs")
-    const document = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise
-    const pages: string[] = []
-    for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
-      const page = await document.getPage(pageNumber)
-      const content = await page.getTextContent()
-      pages.push(content.items.map((item) => "str" in item ? item.str : "").join(" "))
-    }
-    return pages.join("\n")
-  }
+  if (extension === "pdf") return await readPdf(file)
+  if (extension === "doc") return readLegacyDoc(await file.arrayBuffer())
   return await file.text()
 }
