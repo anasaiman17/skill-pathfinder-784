@@ -31,7 +31,7 @@ async function readPdf(file: File): Promise<string> {
   const workerUrl = (await import("pdfjs-dist/legacy/build/pdf.worker.min.mjs?url")).default
   pdfjs.GlobalWorkerOptions.workerSrc = workerUrl
   const data = new Uint8Array(await file.arrayBuffer())
-  const document = await pdfjs.getDocument({ data, isEvalSupported: false, useSystemFonts: true }).promise
+  const document = await pdfjs.getDocument({ data }).promise
   const pages: string[] = []
   for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
     const page = await document.getPage(pageNumber)
@@ -52,7 +52,7 @@ async function readPdf(file: File): Promise<string> {
     parts.push(line.trim())
     pages.push(parts.filter(Boolean).join("\n"))
   }
-  await document.destroy()
+
   return pages.join("\n")
 }
 
