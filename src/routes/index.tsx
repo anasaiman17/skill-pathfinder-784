@@ -90,7 +90,31 @@ function Index() {
   function addSkill() { const name = normalizeSkill(newSkill); if (!name || workspace.skills.some((skill) => skill.name.toLowerCase() === name.toLowerCase())) return; updateWorkspace({ skills: [...workspace.skills, { name, level: newLevel, category: newCategory }] }); setNewSkill(""); showNotice(`${name} added to your skills`); }
   function removeSkill(name: string) { updateWorkspace({ skills: workspace.skills.filter((skill) => skill.name !== name) }); }
   function clearFilters() { setJobSearch(""); setCategoryFilter(""); setExperienceFilter(""); setRequiredSkillFilter(""); setTechnologyFilter(""); setCertificationFilter(""); setEducationFilter(""); }
-  async function handleResume(event: ChangeEvent<HTMLInputElement>) { const file = event.target.files?.[0]; if (!file) return; if (!/\.(pdf|doc|docx)$/i.test(file.name)) { showNotice("Choose a PDF, DOC, or DOCX resume"); return; } if (file.size > 20 * 1024 * 1024) { showNotice("Resume must be smaller than 20 MB"); return; } setBusy(true); try { const text = await extractResumeText(file); if (text.trim().length < 20) throw new Error("This file does not contain enough readable text"); updateWorkspace({ resume: { ...defaultResume, fileName: file.name, fileType: file.type || file.name.split(".").pop()?.toUpperCase() || "Document", text, status: "Not checked" } }); showNotice("Resume uploaded successfully — ready to verify"); } catch { showNotice("We could not read this file. Try a text-based PDF or DOCX."); } finally { setBusy(false); event.target.value = ""; } }
+  async function handleResume(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!/\.(pdf|doc|docx)$/i.test(file.name)) { showNotice("Choose a PDF, DOC, or DOCX resume"); return; }
+    if (file.size > 20 * 1024 * 1024) { showNotice("Resume must be smaller than 20 MB"); return; }
+    setBusy(true);
+    try {
+      const text = await extractResumeText(file);
+      if (text.replace(/\s/g, "").length < 40) throw new Error("empty");
+      const insight = analyzeResume(text);
+      const merged = [...workspace.skills];
+      for (const detected of insight.detectedSkills) {
+        const existing = merged.find((skill) => skill.name.toLowerCase() === detected.name.toLowerCase());
+        if (existing) { if (levelOrder.indexOf(detected.level) > levelOrder.indexOf(existing.level)) existing.level = detected.level; continue; }
+        merged.push({ name: detected.name, level: detected.level, category: skillCategory(detected.name) });
+      }
+      updateWorkspace({
+        skills: merged,
+        resume: { ...defaultResume, fileName: file.name, fileType: file.name.split(".").pop()?.toUpperCase() || "Document", text, status: "Not checked" },
+      });
+      showNotice(`Resume read — ${insight.detectedSkills.length} skills detected`);
+    } catch {
+      showNotice("We could not read this file. Try a text-based PDF or DOCX (scanned images cannot be read).");
+    } finally { setBusy(false); event.target.value = ""; }
+  }
   function verifyResume() { const parsed = inspectResumeText(workspace.resume.text); const checks = { personal: Boolean(parsed.name || parsed.email || parsed.phone), education: Boolean(parsed.education), skills: allSkills.length > 0, experience: parsed.jobTitles.length > 0 || Boolean(workspace.profile.yearsExperience), certifications: parsed.certifications.length > 0, projects: parsed.projects.length > 0 }; const issues = [!checks.personal ? "Add a name, email, or phone number to the resume." : "", !checks.education ? "Education was not found in the resume." : "", !checks.skills ? "Add or describe at least one technical skill." : "", !checks.experience ? "Add a job title or experience history." : ""].filter(Boolean); const completed = Object.values(checks).filter(Boolean).length; const status: VerificationStatus = completed === 6 ? "Verified" : completed >= 3 ? "Needs review" : "Incomplete"; updateWorkspace({ resume: { ...workspace.resume, parsed, checks, issues, status } }); showNotice(status === "Verified" ? "Resume verified" : "Resume review is ready"); }
   async function logout() { await supabase.auth.signOut(); setUserId(null); setWorkspace(blankWorkspace); showNotice("You have been signed out"); }
 
