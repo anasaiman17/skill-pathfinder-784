@@ -1,442 +1,116 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
-  ArrowRight,
-  ArrowUpRight,
-  BarChart3,
-  BookOpen,
-  BriefcaseBusiness,
-  Check,
-  ChevronRight,
-  CircleCheck,
-  Compass,
-  FileText,
-  Flame,
-  GraduationCap,
-  Menu,
-  Plus,
-  Radar,
-  RotateCcw,
-  Save,
-  ShieldCheck,
-  Target,
-  TrendingUp,
-  Upload,
-  X,
-  Zap,
+  ArrowRight, BriefcaseBusiness, Check, ChevronRight, CircleCheck, Compass, Download,
+  FileCheck2, FileText, Filter, Globe2, Heart, LogOut, Menu, Plus, Search, Settings2,
+  ShieldCheck, SlidersHorizontal, Sparkles, Target, Trash2, Upload, UserRound, X, Zap,
 } from "lucide-react";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
-import type { LucideIcon } from "lucide-react";
-
+import { useEffect, useMemo, useState, type ChangeEvent, type ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { supabase } from "@/integrations/supabase/client";
+import { allCatalogSkills, categories, experienceLevels, jobs, roleCatalog, type ExperienceLevel, type JobCategory, type JobRecord } from "@/lib/career-catalog";
+import { extractResumeText, inspectResumeText, type ParsedResume } from "@/lib/resume-parser";
 
 export const Route = createFileRoute("/")({
-  head: () => ({
-    meta: [
-      { title: "Skillwise — AI Skill Gap Analyzer" },
-      { name: "description", content: "Turn your current skills into a clear, local learning roadmap for the career you want." },
-      { property: "og:title", content: "Skillwise — AI Skill Gap Analyzer" },
-      { property: "og:description", content: "See your skill gap, choose a target role, and follow a focused learning plan saved on your device." },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary_large_image" },
-    ],
-  }),
+  head: () => ({ meta: [
+    { title: "Skillwise — IT Career & Job Skills Platform" },
+    { name: "description", content: "Build your IT career with profile tools, resume verification, job matching, and a personal learning roadmap." },
+    { property: "og:title", content: "Skillwise — IT Career & Job Skills Platform" },
+    { property: "og:description", content: "Match your skills to the IT roles you want and keep your career progress in one workspace." },
+    { property: "og:type", content: "website" },
+    { name: "twitter:card", content: "summary_large_image" },
+  ] }),
   component: Index,
 });
 
-type Section = "overview" | "profile" | "analysis" | "roadmap";
-type ResourceStatus = "not-started" | "in-progress" | "completed";
-type RoleKey = keyof typeof roleCatalog;
-type Requirement = { skill: string; level: string; weight: number };
-
+type Section = "dashboard" | "jobs" | "skills" | "resume" | "career" | "saved" | "profile" | "settings";
+type SkillLevel = "Beginner" | "Intermediate" | "Advanced" | "Expert";
+type VerificationStatus = "Not checked" | "Verified" | "Needs review" | "Incomplete";
+type UserSkill = { name: string; level: SkillLevel; category: string };
 type Profile = {
-  name: string;
-  email: string;
-  currentPosition: string;
-  experience: string;
-  education: string;
-  targetRole: RoleKey;
-  skills: string[];
-  resumeText: string;
-  resumeName: string;
+  fullName: string; phone: string; dateOfBirth: string; location: string; city: string; state: string; country: string;
+  qualification: string; college: string; graduationYear: string; totalExperience: string; currentJobTitle: string;
+  previousJobTitle: string; yearsExperience: string; linkedin: string; github: string; portfolio: string; photo: string;
 };
+type ResumeState = { fileName: string; fileType: string; text: string; parsed: ParsedResume | null; status: VerificationStatus; checks: Record<string, boolean>; issues: string[] };
+type WorkspaceState = { profile: Profile; skills: UserSkill[]; savedJobs: string[]; resume: ResumeState; targetRole: string };
 
-type AppState = Profile & { resourceStatuses: Record<string, ResourceStatus> };
-type Resource = { id: string; title: string; provider: string; type: string; skill: string; duration: string; accent: "teal" | "amber" | "blue" | "coral" };
+const STORAGE_PREFIX = "skillwise-workspace-v3:";
+const defaultProfile: Profile = { fullName: "", phone: "", dateOfBirth: "", location: "", city: "", state: "", country: "", qualification: "", college: "", graduationYear: "", totalExperience: "", currentJobTitle: "", previousJobTitle: "", yearsExperience: "", linkedin: "", github: "", portfolio: "", photo: "" };
+const defaultResume: ResumeState = { fileName: "", fileType: "", text: "", parsed: null, status: "Not checked", checks: {}, issues: [] };
+const blankWorkspace: WorkspaceState = { profile: defaultProfile, skills: [], savedJobs: [], resume: defaultResume, targetRole: "Cloud Engineer" };
+const skillCategories = ["Programming", "Cloud", "DevOps", "Networking", "Cybersecurity", "Linux", "Windows", "Databases", "Data Analytics", "Artificial Intelligence", "Machine Learning", "Software Development", "Testing", "IT Support", "Infrastructure", "UI/UX", "Project Management"];
+const levelOrder: SkillLevel[] = ["Beginner", "Intermediate", "Advanced", "Expert"];
+const skillAliases: Record<string, string> = { python: "Python", javascript: "JavaScript", js: "JavaScript", typescript: "TypeScript", ts: "TypeScript", aws: "AWS", azure: "Azure", gcp: "Google Cloud", kubernetes: "Kubernetes", k8s: "Kubernetes", terraform: "Terraform", sql: "SQL", "power bi": "Power BI", powerbi: "Power BI", linux: "Linux", windows: "Windows", git: "Git", docker: "Docker", "machine learning": "Machine Learning", ml: "Machine Learning", networking: "Networking", "active directory": "Active Directory", react: "React", java: "Java", csharp: "C#", "c#": "C#", excel: "Excel" };
 
-const STORAGE_KEY = "skillwise-local-state-v1";
-
-const roleCatalog = {
-  "IT Support Engineer": ["Windows", "Hardware", "Networking", "Troubleshooting", "Ticketing"],
-  "Help Desk Technician": ["Windows", "Hardware", "Networking", "Customer Support", "Troubleshooting"],
-  "Desktop Support Engineer": ["Windows", "Active Directory", "Hardware", "Networking", "Troubleshooting"],
-  "System Administrator": ["Linux", "Windows Server", "Networking", "Active Directory", "PowerShell", "Bash"],
-  "Linux Administrator": ["Linux", "Bash", "Networking", "SSH", "Systemd", "Security"],
-  "Windows Administrator": ["Windows Server", "Active Directory", "DNS", "DHCP", "PowerShell"],
-  "Infrastructure Engineer": ["Linux", "Windows Server", "Networking", "Virtualization", "Cloud"],
-  "Infrastructure Architect": ["Networking", "Servers", "Cloud", "Virtualization", "Architecture"],
-  "Network Administrator": ["TCP/IP", "Routing", "Switching", "VLAN", "DNS", "DHCP"],
-  "Network Engineer": ["TCP/IP", "Routing", "Switching", "VLAN", "OSPF", "BGP", "Firewalls"],
-  "Network Architect": ["Network Design", "Routing", "Switching", "Security", "Cloud Networking"],
-  "NOC Engineer": ["Networking", "Monitoring", "TCP/IP", "Troubleshooting", "Incident Management"],
-  "Network Security Engineer": ["Firewalls", "VPN", "IDS/IPS", "TCP/IP", "Network Security"],
-  "Cloud Engineer": ["AWS", "Azure", "Google Cloud", "Linux", "Networking", "IAM", "Terraform", "Docker"],
-  "Cloud Administrator": ["AWS", "Azure", "Google Cloud", "IAM", "Virtual Machines", "Storage", "Networking"],
-  "Cloud Architect": ["Cloud Architecture", "Networking", "Security", "IAM", "Scalability", "Terraform"],
-  "Cloud Security Engineer": ["Cloud Security", "IAM", "Networking", "Encryption", "Security Monitoring"],
-  "Cloud Network Engineer": ["VPC/VNet", "Routing", "VPN", "DNS", "Load Balancing", "Firewalls"],
-  "DevOps Engineer": ["Linux", "Git", "CI/CD", "Docker", "Kubernetes", "Terraform", "Cloud"],
-  "DevSecOps Engineer": ["DevOps", "Security", "CI/CD", "Docker", "Kubernetes", "SAST/DAST"],
-  "Site Reliability Engineer": ["Linux", "Cloud", "Kubernetes", "Monitoring", "Automation", "Python"],
-  "Platform Engineer": ["Cloud", "Kubernetes", "Terraform", "CI/CD", "Linux", "Automation"],
-  "Kubernetes Engineer": ["Kubernetes", "Docker", "Helm", "Linux", "Networking", "Terraform"],
-  "Automation Engineer": ["Python", "Bash", "PowerShell", "Ansible", "APIs", "Automation"],
-  "Software Developer": ["Programming", "OOP", "Git", "SQL", "APIs", "Debugging"],
-  "Software Engineer": ["Programming", "DSA", "OOP", "Git", "System Design", "Databases"],
-  "Frontend Developer": ["HTML", "CSS", "JavaScript", "React", "Angular", "Vue", "Git"],
-  "Backend Developer": ["Java", "Python", "Node.js", "APIs", "SQL", "Databases", "Git"],
-  "Full Stack Developer": ["HTML", "CSS", "JavaScript", "React", "Backend", "SQL", "APIs"],
-  "Web Developer": ["HTML", "CSS", "JavaScript", "Web Frameworks", "Git"],
-  "Java Developer": ["Java", "Spring Boot", "SQL", "REST APIs", "Git", "OOP"],
-  "Python Developer": ["Python", "Django", "Flask", "FastAPI", "SQL", "APIs", "Git"],
-  ".NET Developer": ["C#", ".NET", "ASP.NET", "SQL", "REST APIs", "Git"],
-  "C++ Developer": ["C++", "OOP", "DSA", "STL", "Multithreading", "Git"],
-  "Mobile App Developer": ["Kotlin", "Java", "Android", "APIs", "Databases", "Git"],
-  "Application Developer": ["Programming", "SQL", "APIs", "SDLC", "Debugging"],
-  "Software Architect": ["System Design", "Architecture", "Microservices", "Cloud", "Security"],
-  "Database Administrator": ["SQL", "Backup/Recovery", "Database Security", "Performance Tuning"],
-  "Database Engineer": ["SQL", "Database Design", "Performance", "Replication", "Cloud"],
-  "Data Analyst": ["SQL", "Excel", "Power BI", "Tableau", "Statistics", "Data Visualization"],
-  "Data Engineer": ["Python", "SQL", "ETL", "Spark", "Kafka", "Airflow", "Cloud"],
-  "Data Scientist": ["Python", "Statistics", "Machine Learning", "SQL", "Pandas"],
-  "Data Architect": ["Data Modeling", "SQL", "Cloud", "Data Warehousing", "Architecture"],
-  "BI Developer": ["SQL", "Power BI", "Tableau", "Data Modeling", "ETL"],
-  "Big Data Engineer": ["Python", "Scala", "Spark", "Hadoop", "Kafka", "SQL"],
-  "Machine Learning Engineer": ["Python", "Machine Learning", "TensorFlow", "PyTorch", "SQL", "MLOps"],
-  "ML Engineer": ["Python", "Machine Learning", "Docker", "TensorFlow", "SQL", "Cloud"],
-  "AI Engineer": ["Python", "Machine Learning", "Deep Learning", "APIs", "Cloud"],
-  "Generative AI Engineer": ["Python", "LLMs", "RAG", "APIs", "Vector Databases", "Prompt Engineering"],
-  "NLP Engineer": ["Python", "NLP", "Transformers", "LLMs", "Deep Learning"],
-  "Computer Vision Engineer": ["Python", "OpenCV", "Deep Learning", "Computer Vision"],
-  "MLOps Engineer": ["Python", "Machine Learning", "Docker", "Kubernetes", "CI/CD", "Cloud"],
-  "Cybersecurity Analyst": ["Networking", "Linux", "SIEM", "Threat Analysis", "Incident Response"],
-  "SOC Analyst": ["SIEM", "Networking", "Linux", "Log Analysis", "Incident Response"],
-  "Security Engineer": ["Firewalls", "IAM", "IDS/IPS", "Encryption", "Linux"],
-  "Cybersecurity Engineer": ["Network Security", "Cloud Security", "IAM", "SIEM", "Vulnerability Management"],
-  "Security Architect": ["Security Architecture", "Cloud", "Networking", "Zero Trust", "IAM"],
-  "Penetration Tester": ["Linux", "Networking", "Nmap", "Burp Suite", "OWASP", "Web Security"],
-  "Ethical Hacker": ["Linux", "Networking", "Vulnerability Testing", "OWASP", "Security Tools"],
-  "Incident Response Analyst": ["SIEM", "Forensics", "Malware Analysis", "Incident Response"],
-  "Vulnerability Analyst": ["Vulnerability Scanning", "CVE", "Risk Assessment", "Security Tools"],
-  "IAM Engineer": ["Active Directory", "Entra ID", "IAM", "SSO", "MFA", "RBAC"],
-  "Application Security Engineer": ["OWASP", "Secure Coding", "SAST", "DAST", "DevSecOps"],
-  "GRC Analyst": ["Risk Management", "ISO 27001", "NIST", "Compliance", "Auditing"],
-  "IT Auditor": ["IT Controls", "Risk", "Compliance", "Auditing", "Cybersecurity"],
-  "QA Engineer": ["Manual Testing", "Automation", "SDLC", "Test Cases", "Bug Tracking"],
-  "Manual Tester": ["Functional Testing", "Regression Testing", "Test Cases", "Bug Tracking"],
-  "Automation Tester": ["Selenium", "Playwright", "Cypress", "Java", "Python", "JavaScript", "API Testing"],
-  "Performance Tester": ["JMeter", "Load Testing", "Performance Analysis", "Monitoring"],
-  "API Tester": ["REST APIs", "Postman", "SQL", "Automation", "HTTP"],
-  "Test Lead": ["Test Strategy", "Automation", "QA", "Agile", "Leadership"],
-  "Business Analyst": ["Requirements", "SQL", "Excel", "Documentation", "Communication"],
-  "Systems Analyst": ["Systems Analysis", "SQL", "Requirements", "Documentation"],
-  "IT Consultant": ["IT Architecture", "Business Analysis", "Cloud", "Communication"],
-  "Technical Consultant": ["Technical Architecture", "Cloud", "Networking", "Troubleshooting"],
-  "IT Project Manager": ["Project Management", "Agile", "Scrum", "Planning", "Communication"],
-  "Scrum Master": ["Scrum", "Agile", "Facilitation", "Leadership", "Communication"],
-  "Product Manager": ["Product Strategy", "Agile", "Analytics", "Communication", "Leadership"],
-  "IT Manager": ["IT Operations", "Infrastructure", "Security", "Leadership", "Budgeting"],
-  "IT Service Desk Analyst": ["ITIL", "Ticketing", "Troubleshooting", "Windows", "Communication"],
-  "IT Operations Engineer": ["Linux", "Windows", "Networking", "Monitoring", "Automation"],
-  "Application Support Engineer": ["SQL", "Linux", "Application Troubleshooting", "APIs", "Monitoring"],
-  "Release Engineer": ["Git", "CI/CD", "Jenkins", "Automation", "Deployment"],
-  "Build Engineer": ["Git", "Build Systems", "CI/CD", "Scripting", "Automation"],
-  "Systems Engineer": ["Linux", "Windows", "Networking", "Virtualization", "Cloud"],
-  "Virtualization Engineer": ["VMware", "Hyper-V", "Virtual Machines", "Networking", "Storage"],
-  "VMware Administrator": ["VMware vSphere", "ESXi", "vCenter", "Storage", "Networking"],
-  "Hardware Engineer": ["Computer Hardware", "Electronics", "Troubleshooting", "Networking"],
-  "IT Hardware Technician": ["Hardware", "Windows", "Networking", "Troubleshooting"],
-  "UI Designer": ["Figma", "UI Design", "Typography", "Visual Design"],
-  "UX Designer": ["UX Research", "Wireframing", "Prototyping", "Figma"],
-  "UI/UX Designer": ["Figma", "UX", "UI", "Prototyping", "User Research"],
-  "Product Designer": ["UI/UX", "Figma", "User Research", "Product Thinking"],
-  "Game Developer": ["C++", "C#", "Unity", "Unreal", "Game Physics", "3D"],
-  "IoT Engineer": ["Embedded Systems", "C/C++", "Python", "Networking", "Sensors"],
-  "Robotics Engineer": ["Python", "C++", "Robotics", "ROS", "Computer Vision"],
-  "Blockchain Developer": ["Solidity", "Ethereum", "Web3", "JavaScript", "Smart Contracts"],
-  "ERP Consultant": ["ERP Systems", "Business Processes", "SQL", "Configuration"],
-  "SAP Consultant": ["SAP", "Business Processes", "SQL", "Configuration"],
-  "Technical Writer": ["Documentation", "Technical Knowledge", "Communication", "Markdown"],
-  "Solutions Architect": ["Cloud", "System Design", "Networking", "Security", "APIs"],
-  "Enterprise Architect": ["Architecture", "Cloud", "IT Strategy", "Security", "Governance"],
-  "CTO": ["Technology Strategy", "Architecture", "Leadership", "Business"],
-  "CIO": ["IT Strategy", "Governance", "Leadership", "Risk Management"],
-} as const;
-
-const roleRequirements = Object.fromEntries(
-  Object.entries(roleCatalog).map(([role, skills]) => [role, skills.map((skill, index) => ({ skill, level: index < 2 ? "Intermediate" : "Beginner", weight: index < 2 ? 1.2 : 1 }))]),
-) as Record<RoleKey, Requirement[]>;
-
-const resources: Resource[] = [
-  { id: "sql", title: "SQL for Data Analysis", provider: "DataCamp", type: "Course", skill: "SQL", duration: "6 weeks", accent: "teal" },
-  { id: "stats", title: "Statistics with Python", provider: "Coursera", type: "Specialization", skill: "Statistics", duration: "8 weeks", accent: "amber" },
-  { id: "python", title: "Python Data Science Handbook", provider: "O'Reilly", type: "Book", skill: "Python", duration: "4 weeks", accent: "blue" },
-  { id: "tableau", title: "Tableau Desktop Specialist", provider: "Tableau", type: "Certification", skill: "Tableau", duration: "3 weeks", accent: "coral" },
-  { id: "ml", title: "Machine Learning Foundations", provider: "Google", type: "Certificate", skill: "Machine learning", duration: "10 weeks", accent: "teal" },
-  { id: "react", title: "Meta Front-End Developer", provider: "Meta", type: "Certificate", skill: "React", duration: "12 weeks", accent: "blue" },
-  { id: "docker", title: "Docker Foundations", provider: "Docker", type: "Course", skill: "Docker", duration: "2 weeks", accent: "amber" },
-  { id: "storytelling", title: "Data Visualization & Storytelling", provider: "LinkedIn Learning", type: "Course", skill: "Data storytelling", duration: "2 weeks", accent: "coral" },
-];
-
-const coreSkillNames = Array.from(new Set(Object.values(roleCatalog).flat()));
-
-const defaultProfile: AppState = {
-  name: "Alex Morgan",
-  email: "alex.morgan@example.com",
-  currentPosition: "Marketing coordinator",
-  experience: "2 years",
-  education: "B.A. Communications",
-  targetRole: "Data Analyst",
-  skills: ["Excel", "Communication", "Project management"],
-  resumeText: "",
-  resumeName: "",
-  resourceStatuses: {},
-};
-
-const skillAliases: Record<string, string> = Object.fromEntries([
-  ...coreSkillNames.map((skill) => [skill.toLowerCase(), skill]),
-  ["python programming", "Python"], ["structured query language", "SQL"], ["js", "JavaScript"],
-  ["ts", "TypeScript"], ["power bi/tableau", "Power BI"], ["powerbi", "Power BI"], ["google cloud platform", "Google Cloud"],
-  ["gcp", "Google Cloud"], ["amazon web services", "AWS"], ["microsoft azure", "Azure"], ["k8s", "Kubernetes"],
-  ["continuous integration", "CI/CD"], ["continuous delivery", "CI/CD"], ["machine learning", "Machine Learning"],
-  ["ml", "Machine Learning"], ["apis", "APIs"], ["rest api", "REST APIs"], ["rest apis", "REST APIs"],
-  ["node", "Node.js"], ["node js", "Node.js"], [".net", ".NET"], ["c sharp", "C#"], ["c plus plus", "C++"],
-  ["active-directory", "Active Directory"], ["ad", "Active Directory"], ["power shell", "PowerShell"],
-  ["data visualization", "Data Visualization"], ["data storytelling", "Data storytelling"], ["customer service", "Customer Support"],
-  ["troubleshooting", "Troubleshooting"], ["object oriented programming", "OOP"], ["data structures and algorithms", "DSA"],
-  ["artificial intelligence", "AI"], ["large language models", "LLMs"], ["vector database", "Vector Databases"],
-  ["penetration testing", "Penetration Testing"], ["incident response", "Incident Response"], ["test automation", "Automation"],
-] as const);
-
-function normalizeSkill(value: string) {
-  return skillAliases[value.trim().toLowerCase()] ?? value.trim();
-}
-
-function extractSkills(text: string) {
-  const lower = text.toLowerCase();
-  return Array.from(new Set(Object.entries(skillAliases).filter(([alias]) => new RegExp(`(^|[^a-z0-9+#.-])${alias.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?=$|[^a-z0-9+#.-])`, "i").test(lower)).map(([, skill]) => skill)));
-}
-
-function readLocalState(): AppState {
-  if (typeof window === "undefined") return defaultProfile;
-  try {
-    const stored = window.localStorage.getItem(STORAGE_KEY);
-    return stored ? { ...defaultProfile, ...JSON.parse(stored) } : defaultProfile;
-  } catch {
-    return defaultProfile;
-  }
-}
+function normalizeSkill(value: string) { const clean = value.trim().toLowerCase(); return skillAliases[clean] ?? value.trim(); }
+function skillCategory(name: string) { const lower = name.toLowerCase(); if (/aws|azure|cloud|gcp|iam|terraform/.test(lower)) return "Cloud"; if (/linux|bash|unix/.test(lower)) return "Linux"; if (/security|siem|firewall|owasp|iam/.test(lower)) return "Cybersecurity"; if (/sql|database|excel|tableau|power bi|statistics/.test(lower)) return "Data Analytics"; if (/docker|kubernetes|ci\/cd|git|ansible/.test(lower)) return "DevOps"; if (/network|routing|tcp|dns|vpn/.test(lower)) return "Networking"; if (/test|selenium|playwright|cypress/.test(lower)) return "Testing"; return "Programming"; }
+function readWorkspace(userId: string): WorkspaceState { if (typeof window === "undefined") return blankWorkspace; try { const raw = window.localStorage.getItem(STORAGE_PREFIX + userId); return raw ? { ...blankWorkspace, ...JSON.parse(raw), profile: { ...defaultProfile, ...JSON.parse(raw).profile }, resume: { ...defaultResume, ...JSON.parse(raw).resume } } : blankWorkspace; } catch { return blankWorkspace; } }
+function scoreJob(job: JobRecord, skills: UserSkill[]) { const known = new Set(skills.map((skill) => skill.name.toLowerCase())); const matched = job.requiredSkills.filter((skill) => known.has(skill.toLowerCase())); return { matched, missing: job.requiredSkills.filter((skill) => !known.has(skill.toLowerCase())), score: Math.round((matched.length / Math.max(1, job.requiredSkills.length)) * 100) }; }
+function profileCompletion(profile: Profile) { const fields = [profile.fullName, profile.phone, profile.location, profile.city, profile.country, profile.qualification, profile.college, profile.graduationYear, profile.currentJobTitle, profile.yearsExperience, profile.linkedin, profile.github, profile.portfolio]; return Math.round((fields.filter(Boolean).length / fields.length) * 100); }
 
 function Index() {
-  const [state, setState] = useState<AppState>(readLocalState);
-  const [section, setSection] = useState<Section>("overview");
+  const [userId, setUserId] = useState<string | null>(null);
+  const [accountEmail, setAccountEmail] = useState("");
+  const [workspace, setWorkspace] = useState<WorkspaceState>(blankWorkspace);
+  const [section, setSection] = useState<Section>("dashboard");
   const [mobileMenu, setMobileMenu] = useState(false);
-  const [saved, setSaved] = useState(false);
   const [notice, setNotice] = useState("");
+  const [selectedJob, setSelectedJob] = useState<JobRecord | null>(null);
+  const [skillSearch, setSkillSearch] = useState("");
+  const [jobSearch, setJobSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState<JobCategory | "">("");
+  const [experienceFilter, setExperienceFilter] = useState<ExperienceLevel | "">("");
+  const [requiredSkillFilter, setRequiredSkillFilter] = useState("");
+  const [technologyFilter, setTechnologyFilter] = useState("");
+  const [certificationFilter, setCertificationFilter] = useState("");
+  const [educationFilter, setEducationFilter] = useState("");
   const [newSkill, setNewSkill] = useState("");
-  const [resumeDraft, setResumeDraft] = useState(state.resumeText);
+  const [newLevel, setNewLevel] = useState<SkillLevel>("Intermediate");
+  const [newCategory, setNewCategory] = useState("Programming");
+  const [profileSaved, setProfileSaved] = useState(false);
+  const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }, [state]);
+  useEffect(() => { let active = true; void supabase.auth.getUser().then(({ data }) => { if (!active) return; const user = data.user; if (user) { setUserId(user.id); setAccountEmail(user.email ?? ""); setWorkspace(readWorkspace(user.id)); } }); return () => { active = false; }; }, []);
+  useEffect(() => { if (userId) window.localStorage.setItem(STORAGE_PREFIX + userId, JSON.stringify(workspace)); }, [userId, workspace]);
 
-  const allSkills = useMemo(() => Array.from(new Set([...state.skills, ...extractSkills(state.resumeText)])), [state.skills, state.resumeText]);
-  const requirements = roleRequirements[state.targetRole];
-  const analysis = useMemo(() => {
-    const current = allSkills.map(normalizeSkill);
-    const matches = requirements.filter((requirement) => current.includes(requirement.skill));
-    const missing = requirements.filter((requirement) => !current.includes(requirement.skill));
-    const total = requirements.reduce((sum, item) => sum + item.weight, 0);
-    const matched = matches.reduce((sum, item) => sum + item.weight, 0);
-    return { matches, missing, score: Math.round((matched / total) * 100) };
-  }, [allSkills, requirements]);
-  const recommended = resources.filter((resource) => analysis.missing.some((item) => item.skill === resource.skill));
-  const completedCount = Object.values(state.resourceStatuses).filter((status) => status === "completed").length;
-  const roadmapResources = [...recommended, ...resources.filter((resource) => !recommended.includes(resource))].slice(0, 5);
+  const allSkills = useMemo(() => Array.from(new Set([...workspace.skills.map((skill) => skill.name), ...(workspace.resume.parsed ? Object.keys(skillAliases).filter((alias) => workspace.resume.parsed?.text.toLowerCase().includes(alias)).map((alias) => normalizeSkill(alias)) : [])])), [workspace.skills, workspace.resume.parsed]);
+  const recommendations = useMemo(() => jobs.map((job) => ({ job, result: scoreJob(job, workspace.skills) })).sort((a, b) => b.result.score - a.result.score).slice(0, 5), [workspace.skills]);
+  const filteredJobs = useMemo(() => jobs.filter((job) => { const haystack = [job.title, job.category, job.description, ...job.requiredSkills, ...job.preferredSkills, ...job.tools, ...job.certifications, job.education].join(" ").toLowerCase(); return (!jobSearch || haystack.includes(jobSearch.toLowerCase())) && (!categoryFilter || job.category === categoryFilter) && (!experienceFilter || job.experience === experienceFilter) && (!requiredSkillFilter || job.requiredSkills.some((skill) => skill.toLowerCase().includes(requiredSkillFilter.toLowerCase()))) && (!technologyFilter || job.tools.some((tool) => tool.toLowerCase().includes(technologyFilter.toLowerCase()))) && (!certificationFilter || job.certifications.some((cert) => cert.toLowerCase().includes(certificationFilter.toLowerCase()))) && (!educationFilter || job.education.toLowerCase().includes(educationFilter.toLowerCase())); }), [jobSearch, categoryFilter, experienceFilter, requiredSkillFilter, technologyFilter, certificationFilter, educationFilter]);
+  const activeJob = selectedJob ?? recommendations[0]?.job ?? jobs[0];
+  const activeMatch = activeJob ? scoreJob(activeJob, workspace.skills) : { matched: [], missing: [], score: 0 };
+  const completion = profileCompletion(workspace.profile);
 
-  function updateState(patch: Partial<AppState>) {
-    setState((current) => ({ ...current, ...patch }));
-    setSaved(false);
-  }
+  function showNotice(message: string) { setNotice(message); window.setTimeout(() => setNotice(""), 3600); }
+  function updateWorkspace(patch: Partial<WorkspaceState>) { setWorkspace((current) => ({ ...current, ...patch })); }
+  function updateProfile(patch: Partial<Profile>) { updateWorkspace({ profile: { ...workspace.profile, ...patch } }); setProfileSaved(false); }
+  function goTo(next: Section) { setSection(next); setMobileMenu(false); setSelectedJob(null); window.scrollTo({ top: 0, behavior: "smooth" }); }
+  function toggleSaved(job: JobRecord) { const saved = workspace.savedJobs.includes(job.title); updateWorkspace({ savedJobs: saved ? workspace.savedJobs.filter((title) => title !== job.title) : [...workspace.savedJobs, job.title] }); showNotice(saved ? "Job removed from saved list" : "Job saved to your career list"); }
+  function addSkill() { const name = normalizeSkill(newSkill); if (!name || workspace.skills.some((skill) => skill.name.toLowerCase() === name.toLowerCase())) return; updateWorkspace({ skills: [...workspace.skills, { name, level: newLevel, category: newCategory }] }); setNewSkill(""); showNotice(`${name} added to your skills`); }
+  function removeSkill(name: string) { updateWorkspace({ skills: workspace.skills.filter((skill) => skill.name !== name) }); }
+  function clearFilters() { setJobSearch(""); setCategoryFilter(""); setExperienceFilter(""); setRequiredSkillFilter(""); setTechnologyFilter(""); setCertificationFilter(""); setEducationFilter(""); }
+  async function handleResume(event: ChangeEvent<HTMLInputElement>) { const file = event.target.files?.[0]; if (!file) return; if (!/\.(pdf|doc|docx)$/i.test(file.name)) { showNotice("Choose a PDF, DOC, or DOCX resume"); return; } if (file.size > 20 * 1024 * 1024) { showNotice("Resume must be smaller than 20 MB"); return; } setBusy(true); try { const text = await extractResumeText(file); if (text.trim().length < 20) throw new Error("This file does not contain enough readable text"); updateWorkspace({ resume: { ...defaultResume, fileName: file.name, fileType: file.type || file.name.split(".").pop()?.toUpperCase() || "Document", text, status: "Not checked" } }); showNotice("Resume uploaded successfully — ready to verify"); } catch { showNotice("We could not read this file. Try a text-based PDF or DOCX."); } finally { setBusy(false); event.target.value = ""; } }
+  function verifyResume() { const parsed = inspectResumeText(workspace.resume.text); const checks = { personal: Boolean(parsed.name || parsed.email || parsed.phone), education: Boolean(parsed.education), skills: allSkills.length > 0, experience: parsed.jobTitles.length > 0 || Boolean(workspace.profile.yearsExperience), certifications: parsed.certifications.length > 0, projects: parsed.projects.length > 0 }; const issues = [!checks.personal ? "Add a name, email, or phone number to the resume." : "", !checks.education ? "Education was not found in the resume." : "", !checks.skills ? "Add or describe at least one technical skill." : "", !checks.experience ? "Add a job title or experience history." : ""].filter(Boolean); const completed = Object.values(checks).filter(Boolean).length; const status: VerificationStatus = completed === 6 ? "Verified" : completed >= 3 ? "Needs review" : "Incomplete"; updateWorkspace({ resume: { ...workspace.resume, parsed, checks, issues, status } }); showNotice(status === "Verified" ? "Resume verified" : "Resume review is ready"); }
+  async function logout() { await supabase.auth.signOut(); setUserId(null); setWorkspace(blankWorkspace); showNotice("You have been signed out"); }
 
-  function showNotice(message: string, duration = 3000) {
-    setNotice(message);
-    window.setTimeout(() => setNotice(""), duration);
-  }
-
-  function saveProfile() {
-    setSaved(true);
-    showNotice("Profile saved on this device");
-  }
-
-  function handleResume(file: File) {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const text = typeof reader.result === "string" ? reader.result : "";
-      if (text.length > 20 && !file.type.includes("pdf") && !file.name.match(/\.docx?$/i)) {
-        setResumeDraft(text);
-        updateState({ resumeText: text, resumeName: file.name });
-        showNotice(`${file.name} added — skills are ready to review`, 4200);
-      } else {
-        updateState({ resumeName: file.name });
-        showNotice("File saved locally. Paste its text below to extract skills.", 4200);
-      }
-    };
-    reader.readAsText(file);
-  }
-
-  function saveResume() {
-    const found = extractSkills(resumeDraft);
-    updateState({ resumeText: resumeDraft, skills: Array.from(new Set([...state.skills, ...found])) });
-    showNotice(found.length ? `${found.length} skill${found.length === 1 ? "" : "s"} added from your resume` : "Resume saved on this device");
-  }
-
-  function addSkill() {
-    const skill = normalizeSkill(newSkill);
-    if (!skill || allSkills.some((item) => item.toLowerCase() === skill.toLowerCase())) return;
-    updateState({ skills: [...state.skills, skill] });
-    setNewSkill("");
-  }
-
-  function toggleResource(id: string, status: ResourceStatus) {
-    updateState({ resourceStatuses: { ...state.resourceStatuses, [id]: status } });
-  }
-
-  function resetLocalData() {
-    setState(defaultProfile);
-    setResumeDraft("");
-    showNotice("Local workspace reset");
-  }
-
-  const navItems: { id: Section; label: string }[] = [
-    { id: "overview", label: "Dashboard" },
-    { id: "analysis", label: "New assessment" },
-    { id: "profile", label: "My profile" },
-    { id: "roadmap", label: "Roadmap" },
-  ];
-
-  function goTo(nextSection: Section) {
-    setSection(nextSection);
-    setMobileMenu(false);
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }
-
-  return (
-    <div className="min-h-screen bg-background text-foreground">
-      <header className="relative z-20 mx-auto flex w-full max-w-[1240px] items-center justify-between px-5 py-6 md:px-8 lg:py-7">
-        <button type="button" className="flex items-center gap-2.5 text-left" onClick={() => goTo("overview")} aria-label="Go to Skillwise dashboard">
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-ink text-cyan shadow-[4px_4px_0_var(--cyan)]"><Compass className="h-5 w-5" /></span>
-          <span className="font-display text-[1.22rem] font-bold tracking-tight text-ink">skill<span className="text-cyan">wise</span></span>
-        </button>
-        <nav className="hidden items-center gap-7 text-sm font-semibold text-ink/65 md:flex" aria-label="Primary navigation">
-          {navItems.slice(0, 2).map((item) => <Button key={item.id} variant="ghost" onClick={() => goTo(item.id)} className={`h-auto p-0 text-ink/65 hover:bg-transparent hover:text-ink ${section === item.id ? "text-ink" : ""}`}>{item.label}</Button>)}
-           <Button asChild variant="outline" className="h-9 rounded-lg border-ink/15 bg-transparent px-4 text-ink hover:bg-card"><Link to="/auth">Sign in</Link></Button>
-          <Button variant="outline" onClick={() => goTo("profile")} className="h-9 rounded-lg border-ink/15 bg-transparent px-4 text-ink hover:bg-card">Open profile</Button>
-        </nav>
-        <Button aria-label="Open navigation" variant="ghost" size="icon" className="text-ink md:hidden" onClick={() => setMobileMenu((open) => !open)}><Menu /></Button>
-         {mobileMenu && <nav className="absolute left-5 right-5 top-[72px] flex flex-col gap-2 rounded-xl border border-ink/10 bg-card p-3 shadow-xl md:hidden" aria-label="Mobile navigation">{navItems.map((item) => <Button key={item.id} variant="ghost" onClick={() => goTo(item.id)} className="justify-start text-ink">{item.label}</Button>)}<Button asChild variant="outline" className="justify-start text-ink"><Link to="/auth">Sign in</Link></Button><Button variant="outline" onClick={resetLocalData} className="justify-start text-ink"><RotateCcw /> Reset local data</Button></nav>}
-      </header>
-
-      {notice && <div role="status" className="fixed right-5 top-5 z-50 flex max-w-sm items-center gap-2 rounded-lg bg-ink px-4 py-3 text-sm text-ink-foreground shadow-xl"><CircleCheck className="h-4 w-4 text-cyan" />{notice}</div>}
-
-      <main className="mx-auto w-full max-w-[1240px] px-5 pb-16 md:px-8">
-        {section === "overview" && <Overview state={state} score={analysis.score} missing={analysis.missing} recommended={recommended} completedCount={completedCount} setSection={goTo} />}
-        {section === "profile" && <ProfileView state={state} updateState={updateState} newSkill={newSkill} setNewSkill={setNewSkill} addSkill={addSkill} saveProfile={saveProfile} saved={saved} />}
-        {section === "analysis" && <AnalysisView state={state} score={analysis.score} allSkills={allSkills} requirements={requirements} matches={analysis.matches} missing={analysis.missing} resumeDraft={resumeDraft} setResumeDraft={setResumeDraft} handleResume={handleResume} saveResume={saveResume} setSection={goTo} />}
-        {section === "roadmap" && <RoadmapView state={state} resources={roadmapResources} missing={analysis.missing} toggleResource={toggleResource} />}
-      </main>
-
-      <footer className="mx-auto flex w-full max-w-[1240px] items-center justify-between border-t border-ink/10 px-5 py-5 text-xs text-ink/45 md:px-8">
-        <span className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-cyan" /> Your work stays in this browser.</span>
-        <Button variant="ghost" size="sm" onClick={resetLocalData} className="h-auto p-0 text-ink/55 hover:bg-transparent hover:text-ink"><RotateCcw className="h-3.5 w-3.5" /> Reset data</Button>
-      </footer>
-    </div>
-  );
+  if (!userId) return <PublicHome />;
+  const navItems: { id: Section; label: string; icon: typeof BriefcaseBusiness }[] = [{ id: "dashboard", label: "Dashboard", icon: Compass }, { id: "jobs", label: "Jobs", icon: BriefcaseBusiness }, { id: "skills", label: "Skills", icon: Zap }, { id: "resume", label: "Resume", icon: FileText }, { id: "career", label: "Career", icon: Target }, { id: "saved", label: "Saved jobs", icon: Heart }, { id: "profile", label: "Profile", icon: UserRound }, { id: "settings", label: "Settings", icon: Settings2 }];
+  return <div className="min-h-screen bg-background text-foreground"><aside className="app-sidebar fixed inset-y-0 left-0 z-30 hidden w-64 flex-col p-6 lg:flex"><Brand light /><div className="mt-12 space-y-1">{navItems.map((item) => <NavButton key={item.id} item={item} active={section === item.id} onClick={() => goTo(item.id)} />)}</div><div className="mt-auto space-y-3"><div className="rounded-lg bg-sidebar-accent p-4"><p className="text-xs text-sidebar-foreground/55">Profile completeness</p><div className="mt-2 flex items-center justify-between text-sm font-bold"><span>{completion}%</span><span className="text-sidebar-primary">{workspace.skills.length} skills</span></div><Progress value={completion} className="mt-3 h-1.5 bg-sidebar-foreground/10" /></div><Button variant="ghost" onClick={logout} className="w-full justify-start text-sidebar-foreground/65 hover:bg-sidebar-accent hover:text-sidebar-foreground"><LogOut className="mr-2 h-4 w-4" /> Sign out</Button></div></aside><header className="sticky top-0 z-20 flex items-center justify-between border-b border-ink/10 bg-background/95 px-5 py-4 backdrop-blur lg:ml-64 lg:px-10"><Brand /><div className="hidden items-center gap-4 md:flex"><span className="text-sm text-ink/55">{accountEmail}</span><Button size="sm" variant="outline" onClick={() => goTo("profile")}><UserRound className="mr-2 h-4 w-4" /> Profile</Button></div><Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setMobileMenu((value) => !value)} aria-label="Open navigation"><Menu /></Button>{mobileMenu && <div className="absolute left-4 right-4 top-16 rounded-lg border border-ink/10 bg-card p-3 shadow-xl lg:hidden">{navItems.map((item) => <NavButton key={item.id} item={item} active={section === item.id} onClick={() => goTo(item.id)} />)}<Button variant="ghost" onClick={logout} className="mt-2 w-full justify-start text-ink"><LogOut className="mr-2 h-4 w-4" /> Sign out</Button></div>}</header><main className="app-fade-in mx-auto min-h-[calc(100vh-73px)] max-w-[1400px] px-5 py-8 lg:ml-64 lg:px-10 lg:py-12">{notice && <div role="status" className="fixed right-5 top-5 z-50 flex items-center gap-2 rounded-lg bg-ink px-4 py-3 text-sm text-ink-foreground shadow-xl"><CircleCheck className="h-4 w-4 text-cyan" />{notice}</div>}{section === "dashboard" && <Dashboard workspace={workspace} completion={completion} recommendations={recommendations} activeMatch={activeMatch} goTo={goTo} setSelectedJob={setSelectedJob} />}{section === "jobs" && <JobsView jobs={filteredJobs} selectedJob={selectedJob} setSelectedJob={setSelectedJob} search={jobSearch} setSearch={setJobSearch} category={categoryFilter} setCategory={setCategoryFilter} experience={experienceFilter} setExperience={setExperienceFilter} requiredSkill={requiredSkillFilter} setRequiredSkill={setRequiredSkillFilter} technology={technologyFilter} setTechnology={setTechnologyFilter} certification={certificationFilter} setCertification={setCertificationFilter} education={educationFilter} setEducation={setEducationFilter} clearFilters={clearFilters} savedJobs={workspace.savedJobs} toggleSaved={toggleSaved} skills={workspace.skills} />}{section === "skills" && <SkillsView skills={workspace.skills} search={skillSearch} setSearch={setSkillSearch} newSkill={newSkill} setNewSkill={setNewSkill} newLevel={newLevel} setNewLevel={setNewLevel} newCategory={newCategory} setNewCategory={setNewCategory} addSkill={addSkill} removeSkill={removeSkill} />}{section === "resume" && <ResumeView workspace={workspace} handleResume={handleResume} verifyResume={verifyResume} busy={busy} goTo={goTo} />}{section === "career" && <CareerView recommendations={recommendations} setSelectedJob={setSelectedJob} goTo={goTo} />}{section === "saved" && <SavedView savedJobs={workspace.savedJobs} setSelectedJob={setSelectedJob} toggleSaved={toggleSaved} />}{section === "profile" && <ProfileView profile={workspace.profile} updateProfile={updateProfile} completion={completion} save={() => { setProfileSaved(true); showNotice("Profile saved"); }} saved={profileSaved} />}{section === "settings" && <SettingsView email={accountEmail} logout={logout} reset={() => { if (window.confirm("Reset your workspace? This cannot be undone.")) { updateWorkspace(blankWorkspace); showNotice("Workspace reset"); } }} />}{selectedJob && section !== "jobs" && <JobDetails job={selectedJob} skills={workspace.skills} saved={workspace.savedJobs.includes(selectedJob.title)} toggleSaved={toggleSaved} close={() => setSelectedJob(null)} />}</main></div>;
 }
 
-function Overview({ state, score, missing, recommended, completedCount, setSection }: { state: AppState; score: number; missing: Requirement[]; recommended: Resource[]; completedCount: number; setSection: (section: Section) => void }) {
-  const firstName = state.name.trim().split(" ")[0] || "there";
-  const nextResource = recommended[0] ?? resources[0];
-  const technicalScore = Math.min(100, Math.round((state.skills.filter((skill) => skill !== "Communication" && skill !== "Project management").length / 5) * 100));
-  const softScore = state.skills.some((skill) => skill === "Communication" || skill === "Project management") ? 64 : 32;
+function PublicHome() { return <main className="min-h-screen bg-background px-6 py-7"><div className="mx-auto max-w-[1180px]"><div className="flex items-center justify-between"><Brand /><Button asChild className="bg-ink text-ink-foreground hover:bg-ink/90"><Link to="/auth">Sign in <ArrowRight className="ml-2 h-4 w-4" /></Link></Button></div><section className="grid items-center gap-14 py-20 lg:grid-cols-[1fr_0.9fr] lg:py-32"><div><p className="app-kicker text-cyan">IT career clarity</p><h1 className="mt-5 max-w-3xl font-display text-5xl font-extrabold leading-[0.98] text-ink md:text-7xl">Build the career your skills are ready for.</h1><p className="mt-7 max-w-xl text-lg leading-8 text-ink/60">Complete your profile, verify your resume, discover the right IT roles, and turn your next move into a practical plan.</p><div className="mt-9 flex flex-wrap gap-4"><Button asChild className="h-12 rounded-none bg-ink px-6 text-ink-foreground shadow-[5px_5px_0_var(--cyan)] hover:bg-ink/90"><Link to="/auth">Create your workspace <ArrowRight className="ml-2 h-4 w-4" /></Link></Button><Button asChild variant="ghost" className="h-12 text-ink"><Link to="/auth">Already registered? Sign in</Link></Button></div></div><div className="relative"><div className="absolute -inset-5 rotate-[-4deg] rounded-2xl bg-mint/50" /><div className="relative rounded-2xl bg-ink p-8 text-ink-foreground shadow-2xl"><p className="text-xs font-bold uppercase tracking-[0.18em] text-ink-foreground/45">Your career workspace</p><div className="mt-10 grid grid-cols-2 gap-3"><Stat label="IT roles" value={`${jobs.length}+`} /><Stat label="Skill paths" value="17" /><Stat label="Resume checks" value="6" /><Stat label="Match insights" value="24/7" /></div><div className="mt-8 rounded-lg bg-ink-foreground/5 p-4"><div className="flex items-center justify-between"><span className="text-xs text-ink-foreground/50">Cloud Engineer readiness</span><span className="font-display text-2xl font-bold text-cyan">78%</span></div><div className="mt-4 h-2 rounded-full bg-ink-foreground/10"><div className="h-full w-[78%] rounded-full bg-cyan" /></div></div></div></div></section></div></main> }
+function Brand({ light = false }: { light?: boolean }) { return <div className="flex items-center gap-2.5"><span className="flex h-9 w-9 items-center justify-center rounded-lg bg-ink text-cyan shadow-[4px_4px_0_var(--cyan)]"><Compass className="h-5 w-5" /></span><span className={`font-display text-[1.22rem] font-bold tracking-tight ${light ? "text-sidebar-foreground" : "text-ink"}`}>skill<span className="text-cyan">wise</span></span></div> }
+function Stat({ label, value }: { label: string; value: string }) { return <div className="rounded-lg bg-ink-foreground/5 p-4"><span className="text-[0.65rem] uppercase tracking-[0.12em] text-ink-foreground/45">{label}</span><strong className="mt-2 block font-display text-2xl text-ink-foreground">{value}</strong></div> }
+function NavButton({ item, active, onClick }: { item: { id: Section; label: string; icon: typeof BriefcaseBusiness }; active: boolean; onClick: () => void }) { const Icon = item.icon; return <Button variant="ghost" onClick={onClick} className={`w-full justify-start gap-3 ${active ? "bg-sidebar-accent text-sidebar-foreground" : "text-sidebar-foreground/55 hover:bg-sidebar-accent hover:text-sidebar-foreground"}`}><Icon className="h-4 w-4" />{item.label}</Button> }
+function Heading({ eyebrow, title, description, action }: { eyebrow: string; title: string; description: string; action?: ReactNode }) { return <div className="mb-8 flex flex-col justify-between gap-5 border-b border-ink/10 pb-7 md:flex-row md:items-end"><div><p className="app-kicker text-cyan">{eyebrow}</p><h1 className="mt-2 font-display text-4xl font-extrabold tracking-tight text-ink md:text-5xl">{title}</h1><p className="mt-3 max-w-2xl text-sm leading-6 text-ink/60">{description}</p></div>{action}</div> }
+function Panel({ children, className = "" }: { children: ReactNode; className?: string }) { return <section className={`blueprint-panel ${className}`}>{children}</section> }
+function Dashboard({ workspace, completion, recommendations, activeMatch, goTo, setSelectedJob }: { workspace: WorkspaceState; completion: number; recommendations: { job: JobRecord; result: ReturnType<typeof scoreJob> }[]; activeMatch: ReturnType<typeof scoreJob>; goTo: (section: Section) => void; setSelectedJob: (job: JobRecord) => void }) { const firstName = workspace.profile.fullName.split(" ")[0] || "there"; return <div><Heading eyebrow="Your command center" title={`Good to see you, ${firstName}.`} description="Your profile, resume, and next best career moves are all in one place." action={<Button onClick={() => goTo("jobs")} className="bg-ink text-ink-foreground hover:bg-ink/90">Explore jobs <ArrowRight className="ml-2 h-4 w-4" /></Button>} /><div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"><Metric label="Profile completion" value={`${completion}%`} icon={UserRound} detail="Keep your story current" /><Metric label="Resume status" value={workspace.resume.status} icon={FileCheck2} detail={workspace.resume.fileName || "No resume uploaded"} /><Metric label="Saved jobs" value={`${workspace.savedJobs.length}`} icon={Heart} detail="Roles to revisit" /><Metric label="Skills tracked" value={`${workspace.skills.length}`} icon={Zap} detail="With proficiency levels" /></div><div className="mt-6 grid gap-6 lg:grid-cols-[1.1fr_0.9fr]"><Panel><div className="flex items-start justify-between"><div><p className="app-kicker">Top career match</p><h2 className="mt-2 font-display text-3xl font-extrabold text-ink">{recommendations[0]?.job.title ?? "Add your skills"}</h2><p className="mt-2 max-w-lg text-sm leading-6 text-ink/55">{recommendations[0]?.job.description ?? "Add skills to see the roles that fit you best."}</p></div><div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full border-[7px] border-cyan/30 text-xl font-bold text-ink">{recommendations[0]?.result.score ?? 0}%</div></div><div className="mt-8 flex flex-wrap gap-2">{(recommendations[0]?.result.matched ?? []).slice(0, 5).map((skill) => <Badge key={skill} className="bg-mint text-mint-foreground">{skill}</Badge>)}{activeMatch.missing.slice(0, 3).map((skill) => <Badge key={skill} variant="outline">Learn {skill}</Badge>)}</div><Button variant="outline" className="mt-7" onClick={() => { if (recommendations[0]) setSelectedJob(recommendations[0].job); }}>View match details <ChevronRight className="ml-2 h-4 w-4" /></Button></Panel><Panel><p className="app-kicker">Recommended for you</p><div className="mt-4 space-y-3">{recommendations.slice(0, 4).map(({ job, result }) => <Button key={job.title} variant="ghost" className="h-auto w-full justify-between rounded-lg border border-ink/10 p-3 text-left hover:bg-secondary" onClick={() => setSelectedJob(job)}><span><strong className="block text-sm text-ink">{job.title}</strong><span className="text-xs text-ink/45">{job.category} · {result.missing.length} skills to build</span></span><span className="font-bold text-cyan">{result.score}%</span></Button>)}</div></Panel></div><div className="mt-6 grid gap-6 lg:grid-cols-3"><ActionCard icon={FileText} title="Verify your resume" detail={workspace.resume.fileName ? "Review extracted information" : "Upload a resume to begin"} onClick={() => goTo("resume")} /><ActionCard icon={Zap} title="Strengthen your skills" detail={`${workspace.skills.length} skills currently tracked`} onClick={() => goTo("skills")} /><ActionCard icon={UserRound} title="Complete your profile" detail={`${completion}% complete`} onClick={() => goTo("profile")} /></div></div> }
+function Metric({ label, value, detail, icon: Icon }: { label: string; value: string; detail: string; icon: typeof UserRound }) { return <Panel className="p-5"><Icon className="h-5 w-5 text-cyan" /><p className="mt-5 text-xs font-semibold text-ink/50">{label}</p><strong className="mt-1 block truncate font-display text-2xl text-ink">{value}</strong><span className="mt-1 block truncate text-xs text-ink/45">{detail}</span></Panel> }
+function ActionCard({ icon: Icon, title, detail, onClick }: { icon: typeof FileText; title: string; detail: string; onClick: () => void }) { return <Button variant="ghost" onClick={onClick} className="h-auto items-start justify-start gap-4 rounded-xl border border-ink/10 bg-card p-5 text-left hover:bg-secondary"><Icon className="mt-1 h-5 w-5 text-cyan" /><span><strong className="block text-sm text-ink">{title}</strong><span className="mt-1 block text-xs text-ink/50">{detail}</span></span><ArrowRight className="ml-auto mt-1 h-4 w-4 text-ink/30" /></Button> }
 
-  return <div className="app-fade-in pt-12 md:pt-16 lg:pt-24">
-    <section className="grid items-center gap-14 lg:grid-cols-[0.95fr_1.05fr] lg:gap-20">
-      <div>
-        <div className="mb-7 flex items-center gap-2 text-[0.68rem] font-bold uppercase tracking-[0.2em] text-cyan"><span className="h-2 w-2 rounded-full bg-cyan" /> Your next move, made clear</div>
-        <h1 className="max-w-[650px] font-display text-[3.45rem] font-extrabold leading-[0.98] tracking-tight text-ink sm:text-[4.7rem] lg:text-[5.3rem]">Turn your<br />ambition<br /><span className="text-cyan">into a roadmap.</span></h1>
-        <p className="mt-8 max-w-[500px] text-base leading-7 text-ink/60 md:text-lg">Understand where you stand, see what the industry expects, and get a learning plan built around the career you want.</p>
-        <div className="mt-8 flex flex-wrap items-center gap-6">
-          <Button onClick={() => setSection("analysis")} className="relative h-13 rounded-none bg-ink px-7 text-sm font-bold text-ink-foreground shadow-[5px_5px_0_var(--cyan)] hover:bg-ink/90 hover:shadow-[2px_2px_0_var(--cyan)]"><span>Find my skill gaps</span><ArrowRight /></Button>
-          <Button variant="ghost" onClick={() => setSection("profile")} className="h-auto gap-2 p-0 text-sm font-bold text-ink hover:bg-transparent hover:text-cyan">Review my profile <ChevronRight className="h-4 w-4" /></Button>
-        </div>
-        <div className="mt-10 flex items-center gap-3 text-xs font-semibold text-ink/40"><div className="flex -space-x-2"><span className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-background bg-cyan text-[0.58rem] text-ink">AL</span><span className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-background bg-mint text-[0.58rem] text-ink">JM</span><span className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-background bg-accent text-[0.58rem] text-ink">SK</span><span className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-background bg-ink text-[0.58rem] text-ink-foreground">+</span></div><span>Built for focused career progress</span></div>
-      </div>
-
-      <div className="relative mx-auto w-full max-w-[520px] lg:mr-4">
-        <div className="absolute -inset-5 -z-10 rotate-[-4deg] rounded-[2rem] bg-mint/55" />
-        <div className="absolute -right-2 -top-7 -z-10 h-24 w-44 rotate-[12deg] rounded-[2rem] bg-cyan/20" />
-        <div className="relative rotate-[1.5deg] rounded-2xl bg-ink p-7 text-ink-foreground shadow-2xl transition-transform duration-500 hover:rotate-0 sm:p-9">
-          <div className="flex items-start justify-between gap-5"><div><div className="text-[0.65rem] font-bold uppercase tracking-[0.18em] text-ink-foreground/45">Your career snapshot</div><div className="mt-1 text-xs text-ink-foreground/25">Updated just now</div></div><ScoreRing score={score} dark /></div>
-          <div className="mt-8 flex items-end gap-3"><span className="font-display text-[4.3rem] font-extrabold leading-none">{score}%</span><span className="mb-1 flex items-center gap-1 text-[0.65rem] font-bold text-cyan"><TrendingUp className="h-3 w-3" /> local analysis</span></div>
-          <div className="mt-9 space-y-5"><SnapshotBar label="Technical skills" value={technicalScore} dark /><SnapshotBar label="Soft skills" value={softScore} dark /><SnapshotBar label="Role readiness" value={score} dark /></div>
-           <Button variant="ghost" onClick={() => setSection("roadmap")} className="mt-9 flex h-auto w-full items-center justify-between rounded-xl bg-ink-foreground/5 p-4 text-left text-ink-foreground hover:bg-ink-foreground/10 hover:text-ink-foreground"><span className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-full bg-cyan/15 text-cyan"><Zap className="h-4 w-4" /></span><span><span className="block text-[0.58rem] font-bold uppercase tracking-[0.16em] text-ink-foreground/35">Next on your roadmap</span><span className="mt-1 block text-sm font-semibold">{nextResource?.title ?? "Choose a learning resource"}</span></span></span><ChevronRight className="h-4 w-4 text-ink-foreground/35" /></Button>
-          <div className="absolute -bottom-7 -right-8 flex items-center gap-3 rounded-xl border border-ink/5 bg-card p-3.5 text-ink shadow-xl sm:-right-12"><span className="flex h-10 w-10 items-center justify-center rounded-full bg-cyan/15 text-cyan"><Target className="h-5 w-5" /></span><span><strong className="block text-xs">{missing.length} skills to unlock</strong><small className="text-[0.65rem] text-ink/45">for {state.targetRole}</small></span></div>
-        </div>
-      </div>
-    </section>
-
-    <section className="mt-24 grid gap-8 border-t border-ink/10 pt-9 md:grid-cols-3 md:gap-10">
-      <JourneyStep number="01" title="Assess your starting point" detail={`${state.skills.length} skills, experience, and goals`} onClick={() => setSection("profile")} />
-      <JourneyStep number="02" title="See the real gap" detail={`${missing.length} focus areas for ${state.targetRole}`} onClick={() => setSection("analysis")} />
-      <JourneyStep number="03" title="Move forward with confidence" detail={`${completedCount} roadmap items completed`} onClick={() => setSection("roadmap")} />
-    </section>
-    <div className="mt-8 flex flex-wrap items-center justify-between gap-3 text-xs text-ink/40"><span>{firstName}'s workspace · {state.targetRole}</span><span className="flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-mint" /> Saved locally on this device</span></div>
-  </div>;
-}
-
-function JourneyStep({ number, title, detail, onClick }: { number: string; title: string; detail: string; onClick: () => void }) {
-  return <Button variant="ghost" onClick={onClick} className="group flex h-auto items-start gap-5 p-0 text-left hover:bg-transparent"><span className="font-display text-xl font-bold text-cyan/65">{number}</span><span className="flex-1"><strong className="block text-sm font-bold text-ink">{title}</strong><small className="mt-1 block text-xs text-ink/45">{detail}</small></span><ArrowUpRight className="mt-0.5 h-4 w-4 text-ink/15 transition-transform group-hover:translate-x-1 group-hover:-translate-y-1" /></Button>;
-}
-
-function SnapshotBar({ label, value, dark = false }: { label: string; value: number; dark?: boolean }) {
-  return <div><div className={`mb-2 flex justify-between text-[0.63rem] font-bold uppercase tracking-[0.08em] ${dark ? "text-ink-foreground/45" : "text-ink/45"}`}><span>{label}</span><span className={dark ? "text-ink-foreground/80" : "text-ink"}>{value}%</span></div><div className={`h-1.5 w-full overflow-hidden rounded-full ${dark ? "bg-ink-foreground/10" : "bg-ink/10"}`}><div className="h-full rounded-full bg-cyan transition-all" style={{ width: `${value}%` }} /></div></div>;
-}
-
-function PageHeading({ eyebrow, title, description, action }: { eyebrow: string; title: string; description: string; action?: ReactNode }) {
-  return <div className="mb-9 flex flex-col justify-between gap-5 border-b border-ink/10 pb-7 md:flex-row md:items-end"><div><div className="mb-2 text-[0.68rem] font-bold uppercase tracking-[0.18em] text-cyan">{eyebrow}</div><h1 className="font-display text-4xl font-extrabold tracking-tight text-ink md:text-5xl">{title}</h1><p className="mt-3 max-w-xl text-sm leading-6 text-ink/60">{description}</p></div>{action}</div>;
-}
-
-function ScoreRing({ score, dark = false }: { score: number; dark?: boolean }) {
-  const circumference = 2 * Math.PI * 49;
-  return <div className="relative h-16 w-16 shrink-0"><svg className="h-full w-full -rotate-90" viewBox="0 0 120 120" aria-label={`${score}% match`} role="img"><circle cx="60" cy="60" r="49" fill="none" stroke={dark ? "oklch(1 0 0 / 12%)" : "var(--secondary)"} strokeWidth="7" /><circle cx="60" cy="60" r="49" fill="none" stroke="var(--cyan)" strokeLinecap="round" strokeWidth="7" strokeDasharray={circumference} strokeDashoffset={circumference - (circumference * score) / 100} /></svg><span className={`absolute inset-0 flex items-center justify-center text-sm font-bold ${dark ? "text-ink-foreground" : "text-ink"}`}>{score}</span></div>;
-}
-
-function ProfileView({ state, updateState, newSkill, setNewSkill, addSkill, saveProfile, saved }: { state: AppState; updateState: (patch: Partial<AppState>) => void; newSkill: string; setNewSkill: (value: string) => void; addSkill: () => void; saveProfile: () => void; saved: boolean }) {
-  return <div className="app-fade-in pt-12 md:pt-16"><PageHeading eyebrow="Your foundation" title="Make it personal" description="Keep your career context up to date so every recommendation feels relevant." action={<Button onClick={saveProfile} className="gap-2 bg-ink text-ink-foreground hover:bg-ink/90"><Save className="h-4 w-4" /> {saved ? "Saved" : "Save profile"}</Button>} /><div className="grid gap-6 lg:grid-cols-[0.8fr_1.2fr]"><section className="blueprint-panel"><PanelTitle icon={FileText} title="About you" detail="Used only on this device" /><div className="space-y-4"><Field label="Full name"><input value={state.name} onChange={(e) => updateState({ name: e.target.value })} className="app-input" /></Field><Field label="Email address"><input type="email" value={state.email} onChange={(e) => updateState({ email: e.target.value })} className="app-input" /></Field><Field label="Current position"><input value={state.currentPosition} onChange={(e) => updateState({ currentPosition: e.target.value })} className="app-input" /></Field><div className="grid gap-4 sm:grid-cols-2"><Field label="Experience"><input value={state.experience} onChange={(e) => updateState({ experience: e.target.value })} className="app-input" /></Field><Field label="Education"><input value={state.education} onChange={(e) => updateState({ education: e.target.value })} className="app-input" /></Field></div></div></section><section className="blueprint-panel"><PanelTitle icon={BriefcaseBusiness} title="Career direction" detail="Choose the role you want to grow into" /><Field label="Target role"><select value={state.targetRole} onChange={(e) => updateState({ targetRole: e.target.value as RoleKey })} className="app-input"><option>Data Analyst</option><option>Data Scientist</option><option>ML Engineer</option><option>Software Developer</option></select></Field><div className="mt-8 border-t border-ink/10 pt-6"><div className="mb-4 flex items-center justify-between"><div><h2 className="text-sm font-bold text-ink">Current skills</h2><p className="mt-1 text-xs text-ink/50">Add what you already know</p></div><Badge variant="secondary">{state.skills.length} skills</Badge></div><div className="flex flex-wrap gap-2">{state.skills.map((skill) => <span key={skill} className="flex items-center gap-1.5 rounded-md border border-ink/10 bg-background px-2.5 py-1.5 text-xs font-medium text-ink">{skill}<Button variant="ghost" size="icon" aria-label={`Remove ${skill}`} className="-mr-1 h-5 w-5 rounded-full p-0 text-ink/50 hover:bg-ink/5 hover:text-ink" onClick={() => updateState({ skills: state.skills.filter((item) => item !== skill) })}><X className="h-3 w-3" /></Button></span>)}</div><div className="mt-5 flex gap-2"><input value={newSkill} onChange={(e) => setNewSkill(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addSkill(); } }} placeholder="Add a skill..." className="app-input" /><Button variant="outline" size="icon" aria-label="Add skill" onClick={addSkill}><Plus /></Button></div></div></section></div></div>;
-}
-
-function AnalysisView({ state, score, allSkills, requirements, matches, missing, resumeDraft, setResumeDraft, handleResume, saveResume, setSection }: { state: AppState; score: number; allSkills: string[]; requirements: Requirement[]; matches: Requirement[]; missing: Requirement[]; resumeDraft: string; setResumeDraft: (value: string) => void; handleResume: (file: File) => void; saveResume: () => void; setSection: (section: Section) => void }) {
-  return <div className="app-fade-in pt-12 md:pt-16"><PageHeading eyebrow="Understand your edge" title="Skill analysis" description={`See how your current profile maps to the ${state.targetRole} role, then turn gaps into a practical plan.`} action={<Button onClick={() => setSection("roadmap")} variant="outline" className="gap-2 border-ink/15 text-ink hover:bg-card"><BarChart3 className="h-4 w-4" /> Open roadmap</Button>} /><div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]"><section className="blueprint-panel"><PanelTitle icon={FileText} title="Add your resume" detail="Text-based files can be read instantly" /><label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-cyan/50 bg-cyan/5 px-5 py-8 text-center transition-colors hover:bg-cyan/10"><input type="file" accept=".txt,.md,.doc,.docx,.pdf" className="sr-only" onChange={(e) => { const file = e.target.files?.[0]; if (file) handleResume(file); }} /><span className="mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-card text-cyan shadow-sm"><Upload className="h-5 w-5" /></span><span className="text-sm font-bold text-ink">{state.resumeName || "Choose a resume file"}</span><span className="mt-1 text-xs text-ink/50">Or paste the text below</span></label><textarea value={resumeDraft} onChange={(e) => setResumeDraft(e.target.value)} placeholder="Paste your resume text here..." className="app-input mt-5 min-h-[165px] resize-y leading-6" /><Button onClick={saveResume} className="mt-3 w-full gap-2 bg-ink text-ink-foreground hover:bg-ink/90"><Zap className="h-4 w-4 text-cyan" /> Extract skills locally</Button></section><section className="blueprint-panel"><div className="mb-6 flex flex-wrap items-start justify-between gap-4"><div><div className="mb-2 text-[0.68rem] font-bold uppercase tracking-[0.18em] text-cyan">Step 02 · Match signal</div><h2 className="font-display text-2xl font-extrabold text-ink">Your role fit</h2><p className="mt-1 text-xs text-ink/50">Compared against {requirements.length} core requirements for {state.targetRole}</p></div><ScoreRing score={score} /></div><div className="mb-7 grid grid-cols-2 gap-3"><div className="rounded-lg bg-cyan/10 p-4"><div className="text-2xl font-bold text-cyan-foreground">{matches.length}</div><div className="mt-1 text-xs text-ink/50">Skills covered</div></div><div className="rounded-lg bg-accent/20 p-4"><div className="text-2xl font-bold text-accent-foreground">{missing.length}</div><div className="mt-1 text-xs text-ink/50">Skills to grow</div></div></div><div className="space-y-4">{requirements.map((requirement) => { const covered = matches.some((item) => item.skill === requirement.skill); return <div key={requirement.skill}><div className="mb-1.5 flex items-center justify-between text-xs"><span className="font-semibold text-ink">{requirement.skill}</span><span className={covered ? "text-mint-foreground" : "text-ink/45"}>{covered ? "Covered" : requirement.level}</span></div><Progress value={covered ? 100 : 18} className={covered ? "h-2 bg-mint/25 [&>div]:bg-mint" : "h-2 bg-accent/20 [&>div]:bg-accent"} /></div>; })}</div></section></div><section className="blueprint-panel mt-6"><div className="mb-5 flex items-center justify-between"><div><div className="mb-2 text-[0.68rem] font-bold uppercase tracking-[0.18em] text-cyan">Your skill inventory</div><h2 className="font-display text-2xl font-extrabold text-ink">Detected and added skills</h2></div><Badge variant="secondary">{allSkills.length} total</Badge></div><div className="flex flex-wrap gap-2">{allSkills.map((skill) => <Badge key={skill} variant={requirements.some((item) => item.skill === skill) ? "default" : "outline"}>{skill}</Badge>)}</div></section></div>;
-}
-
-function RoadmapView({ state, resources: roadmapResources, missing, toggleResource }: { state: AppState; resources: Resource[]; missing: Requirement[]; toggleResource: (id: string, status: ResourceStatus) => void }) {
-  return <div className="app-fade-in pt-12 md:pt-16"><PageHeading eyebrow="A plan you can follow" title="Learning roadmap" description={`A sequenced path to become a stronger ${state.targetRole}. Start with the gaps that unlock the most progress.`} action={<div className="flex items-center gap-2 rounded-full bg-accent/20 px-3 py-2 text-xs font-bold text-accent-foreground"><Zap className="h-4 w-4" /> {missing.length} focus areas</div>} /><div className="relative space-y-4 before:absolute before:bottom-8 before:left-[21px] before:top-8 before:w-px before:bg-ink/10 md:before:left-[25px]">{roadmapResources.map((resource, index) => { const status = state.resourceStatuses[resource.id] ?? "not-started"; return <div key={resource.id} className="relative flex gap-4 md:gap-6"><div className={`z-10 flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-4 border-background ${status === "completed" ? "bg-mint text-mint-foreground" : status === "in-progress" ? "bg-cyan text-cyan-foreground" : "bg-card text-ink/45 shadow-sm"}`}>{status === "completed" ? <Check className="h-4 w-4" /> : <span className="font-display text-sm font-bold">{String(index + 1).padStart(2, "0")}</span>}</div><div className="blueprint-panel mb-1 min-w-0 flex-1 p-5 md:p-6"><div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between"><div className="min-w-0"><div className="mb-2 flex flex-wrap items-center gap-2"><Badge variant="secondary">{resource.type}</Badge><span className="text-xs text-ink/45">{resource.skill}</span></div><h2 className="font-display text-lg font-extrabold text-ink">{resource.title}</h2><p className="mt-1 text-xs text-ink/50">{resource.provider} · {resource.duration}</p></div><div className="flex shrink-0 gap-2">{status !== "completed" && <Button variant={status === "in-progress" ? "secondary" : "outline"} size="sm" onClick={() => toggleResource(resource.id, status === "in-progress" ? "not-started" : "in-progress")}>{status === "in-progress" ? "In progress" : "Start learning"}</Button>}{status === "in-progress" && <Button size="sm" onClick={() => toggleResource(resource.id, "completed")}><Check className="h-3.5 w-3.5" /> Complete</Button>}{status === "completed" && <Button variant="ghost" size="sm" onClick={() => toggleResource(resource.id, "not-started")}>Completed <RotateCcw className="h-3.5 w-3.5" /></Button>}</div></div></div></div>; })}</div></div>;
-}
-
-function PanelTitle({ icon: Icon, title, detail }: { icon: LucideIcon; title: string; detail: string }) {
-  return <div className="mb-6 flex items-center gap-3"><span className="flex h-11 w-11 items-center justify-center rounded-xl bg-cyan/10 text-cyan"><Icon className="h-5 w-5" /></span><div><h2 className="font-display text-lg font-extrabold text-ink">{title}</h2><p className="text-xs text-ink/50">{detail}</p></div></div>;
-}
-
-function Field({ label, children }: { label: string; children: ReactNode }) { return <label className="block"><span className="mb-1.5 block text-xs font-semibold text-ink/55">{label}</span>{children}</label>; }
+function JobsView({ jobs: filtered, selectedJob, setSelectedJob, search, setSearch, category, setCategory, experience, setExperience, requiredSkill, setRequiredSkill, technology, setTechnology, certification, setCertification, education, setEducation, clearFilters, savedJobs, toggleSaved, skills }: { jobs: JobRecord[]; selectedJob: JobRecord | null; setSelectedJob: (job: JobRecord | null) => void; search: string; setSearch: (value: string) => void; category: JobCategory | ""; setCategory: (value: JobCategory | "") => void; experience: ExperienceLevel | ""; setExperience: (value: ExperienceLevel | "") => void; requiredSkill: string; setRequiredSkill: (value: string) => void; technology: string; setTechnology: (value: string) => void; certification: string; setCertification: (value: string) => void; education: string; setEducation: (value: string) => void; clearFilters: () => void; savedJobs: string[]; toggleSaved: (job: JobRecord) => void; skills: UserSkill[] }) { return <div><Heading eyebrow="Explore the market" title="Find your next role" description="Search across IT careers by role, skill, technology, certification, category, and experience." action={<span className="text-sm font-semibold text-ink/50">{filtered.length} roles found</span>} /><div className="grid gap-6 lg:grid-cols-[260px_1fr]"><Panel className="h-fit p-5"><div className="flex items-center justify-between"><p className="app-kicker">Filters</p><Button variant="ghost" size="sm" onClick={clearFilters} className="h-auto p-0 text-xs text-cyan">Clear</Button></div><div className="mt-5 space-y-3"><label className="block text-xs font-semibold text-ink/60">Search<input value={search} onChange={(event) => setSearch(event.target.value)} className="app-input mt-2" placeholder="Azure, analyst, Python..." /></label><label className="block text-xs font-semibold text-ink/60">Category<select value={category} onChange={(event) => setCategory(event.target.value as JobCategory | "")} className="app-input mt-2"><option value="">All categories</option>{categories.map((value) => <option key={value}>{value}</option>)}</select></label><label className="block text-xs font-semibold text-ink/60">Experience<select value={experience} onChange={(event) => setExperience(event.target.value as ExperienceLevel | "")} className="app-input mt-2"><option value="">All levels</option>{experienceLevels.map((value) => <option key={value}>{value}</option>)}</select></label><FilterField label="Required skill" value={requiredSkill} onChange={setRequiredSkill} placeholder="e.g. Terraform" /><FilterField label="Technology" value={technology} onChange={setTechnology} placeholder="e.g. Docker" /><FilterField label="Certification" value={certification} onChange={setCertification} placeholder="e.g. AWS" /><FilterField label="Education" value={education} onChange={setEducation} placeholder="Any degree" /></div></Panel><div className="space-y-4">{selectedJob ? <JobDetails job={selectedJob} skills={skills} saved={savedJobs.includes(selectedJob.title)} toggleSaved={toggleSaved} close={() => setSelectedJob(null)} /> : filtered.map((job) => <JobCard key={job.title} job={job} saved={savedJobs.includes(job.title)} open={() => setSelectedJob(job)} toggleSaved={() => toggleSaved(job)} skills={skills} />)}{filtered.length === 0 && <Panel><Empty icon={Search} title="No roles match those filters" detail="Try a broader search or clear a filter to see more IT careers." /></Panel>}</div></div></div> }
+function FilterField({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (value: string) => void; placeholder: string }) { return <label className="block text-xs font-semibold text-ink/60">{label}<input value={value} onChange={(event) => onChange(event.target.value)} className="app-input mt-2" placeholder={placeholder} /></label> }
+function JobCard({ job, open, saved, toggleSaved, skills }: { job: JobRecord; open: () => void; saved: boolean; toggleSaved: () => void; skills: UserSkill[] }) { const match = scoreJob(job, skills); return <Panel className="p-5"><div className="flex items-start justify-between gap-4"><Button variant="ghost" onClick={open} className="h-auto p-0 text-left hover:bg-transparent"><span><span className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.12em] text-cyan">{job.category} <span className="text-ink/20">·</span> {job.experience}</span><strong className="mt-2 block font-display text-xl text-ink">{job.title}</strong></span></Button><Button variant="ghost" size="icon" aria-label={saved ? `Remove ${job.title} from saved jobs` : `Save ${job.title}`} onClick={toggleSaved} className={saved ? "text-cyan" : "text-ink/30"}><Heart className={saved ? "fill-current" : ""} /></Button></div><p className="mt-3 max-w-2xl text-sm leading-6 text-ink/55">{job.description}</p><div className="mt-4 flex flex-wrap gap-2">{job.requiredSkills.slice(0, 6).map((skill) => <Badge key={skill} variant="secondary">{skill}</Badge>)}</div><div className="mt-5 flex items-center justify-between border-t border-ink/10 pt-4"><span className="text-xs text-ink/45">{match.matched.length} of {job.requiredSkills.length} required skills match</span><Button size="sm" variant="outline" onClick={open}>View details <ChevronRight className="ml-1 h-4 w-4" /></Button></div></Panel> }
+function JobDetails({ job, skills, saved, toggleSaved, close }: { job: JobRecord; skills: UserSkill[]; saved: boolean; toggleSaved: (job: JobRecord) => void; close: () => void }) { const match = scoreJob(job, skills); return <Panel className="p-6"><div className="flex items-start justify-between gap-4"><div><p className="app-kicker text-cyan">{job.category} · {job.experience}</p><h2 className="mt-2 font-display text-3xl font-extrabold text-ink">{job.title}</h2><p className="mt-3 max-w-2xl text-sm leading-6 text-ink/60">{job.description}</p></div><Button variant="ghost" size="icon" onClick={close} aria-label="Close job details"><X /></Button></div><div className="mt-7 grid gap-4 sm:grid-cols-3"><Metric label="Your match" value={`${match.score}%`} detail={`${match.matched.length} matched skills`} icon={Target} /><Metric label="Experience" value={job.experience} detail="Typical level" icon={BriefcaseBusiness} /><Metric label="Saved" value={saved ? "Yes" : "No"} detail="Your career list" icon={Heart} /></div><div className="mt-7 grid gap-7 md:grid-cols-2"><ListBlock title="Matching skills" items={match.matched} tone="good" /><ListBlock title="Skills to build" items={match.missing} tone="warn" /><ListBlock title="Preferred skills" items={job.preferredSkills} /><ListBlock title="Tools & certifications" items={[...job.tools, ...job.certifications]} /></div><div className="mt-7 grid gap-6 border-t border-ink/10 pt-6 md:grid-cols-2"><ListBlock title="Responsibilities" items={job.responsibilities} /><div><p className="text-xs font-bold uppercase tracking-[0.12em] text-ink/45">Career growth</p><p className="mt-3 text-sm leading-6 text-ink/60">{job.growth}</p><p className="mt-4 text-xs text-ink/45">Education: {job.education}</p></div></div><div className="mt-7 flex flex-wrap gap-3"><Button onClick={() => toggleSaved(job)} className="bg-ink text-ink-foreground hover:bg-ink/90"><Heart className={saved ? "mr-2 fill-current" : "mr-2"} /> {saved ? "Remove saved job" : "Save job"}</Button><Button variant="outline" onClick={close}>Back to results</Button></div></Panel> }
+function ListBlock({ title, items, tone }: { title: string; items: string[]; tone?: "good" | "warn" }) { return <div><p className="text-xs font-bold uppercase tracking-[0.12em] text-ink/45">{title}</p><div className="mt-3 flex flex-wrap gap-2">{items.length ? items.map((item) => <Badge key={item} className={tone === "good" ? "bg-mint text-mint-foreground" : tone === "warn" ? "border-accent/30 bg-accent/15 text-ink" : "bg-secondary text-ink"}>{item}</Badge>) : <span className="text-sm text-ink/45">None yet</span>}</div></div> }
