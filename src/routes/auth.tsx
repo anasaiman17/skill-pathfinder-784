@@ -3,6 +3,7 @@ import { ArrowLeft, ArrowRight, CheckCircle2, Compass, LockKeyhole, Mail, Phone,
 import { useEffect, useState, type FormEvent } from "react";
 
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/auth")({
@@ -114,9 +115,12 @@ function AuthPage() {
           <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-ink text-cyan shadow-[4px_4px_0_var(--cyan)]"><Compass className="h-5 w-5" /></span>
           <span className="font-display text-[1.22rem] font-bold tracking-tight text-ink">skill<span className="text-cyan">wise</span></span>
         </Link>
-        <Button asChild variant="ghost" className="text-ink/65 hover:bg-transparent hover:text-ink">
-          <Link to="/"><ArrowLeft /> Back to dashboard</Link>
-        </Button>
+        <div className="flex items-center gap-1">
+          <ThemeToggle />
+          <Button asChild variant="ghost" className="text-ink/65 hover:bg-transparent hover:text-ink">
+            <Link to="/"><ArrowLeft /> Back to dashboard</Link>
+          </Button>
+        </div>
       </div>
 
       <div className="mx-auto grid w-full max-w-[1160px] items-center gap-12 py-14 lg:grid-cols-[0.9fr_1.1fr] lg:py-24">
