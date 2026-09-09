@@ -99,7 +99,107 @@ function Index() {
   return <div className="min-h-screen bg-background text-foreground"><aside className="app-sidebar fixed inset-y-0 left-0 z-30 hidden w-64 flex-col p-6 lg:flex"><Brand light /><div className="mt-12 space-y-1">{navItems.map((item) => <NavButton key={item.id} item={item} active={section === item.id} onClick={() => goTo(item.id)} />)}</div><div className="mt-auto space-y-3"><div className="rounded-lg bg-sidebar-accent p-4"><p className="text-xs text-sidebar-foreground/55">Profile completeness</p><div className="mt-2 flex items-center justify-between text-sm font-bold"><span>{completion}%</span><span className="text-sidebar-primary">{workspace.skills.length} skills</span></div><Progress value={completion} className="mt-3 h-1.5 bg-sidebar-foreground/10" /></div><Button variant="ghost" onClick={logout} className="w-full justify-start text-sidebar-foreground/65 hover:bg-sidebar-accent hover:text-sidebar-foreground"><LogOut className="mr-2 h-4 w-4" /> Sign out</Button></div></aside><header className="sticky top-0 z-20 flex items-center justify-between border-b border-ink/10 bg-background/95 px-5 py-4 backdrop-blur lg:ml-64 lg:px-10"><Brand /><div className="hidden items-center gap-4 md:flex"><span className="text-sm text-ink/55">{accountEmail}</span><Button size="sm" variant="outline" onClick={() => goTo("profile")}><UserRound className="mr-2 h-4 w-4" /> Profile</Button></div><Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setMobileMenu((value) => !value)} aria-label="Open navigation"><Menu /></Button>{mobileMenu && <div className="absolute left-4 right-4 top-16 rounded-lg border border-ink/10 bg-card p-3 shadow-xl lg:hidden">{navItems.map((item) => <NavButton key={item.id} item={item} active={section === item.id} onClick={() => goTo(item.id)} />)}<Button variant="ghost" onClick={logout} className="mt-2 w-full justify-start text-ink"><LogOut className="mr-2 h-4 w-4" /> Sign out</Button></div>}</header><main className="app-fade-in mx-auto min-h-[calc(100vh-73px)] max-w-[1400px] px-5 py-8 lg:ml-64 lg:px-10 lg:py-12">{notice && <div role="status" className="fixed right-5 top-5 z-50 flex items-center gap-2 rounded-lg bg-ink px-4 py-3 text-sm text-ink-foreground shadow-xl"><CircleCheck className="h-4 w-4 text-cyan" />{notice}</div>}{section === "dashboard" && <Dashboard workspace={workspace} completion={completion} recommendations={recommendations} activeMatch={activeMatch} goTo={goTo} setSelectedJob={setSelectedJob} />}{section === "jobs" && <JobsView jobs={filteredJobs} selectedJob={selectedJob} setSelectedJob={setSelectedJob} search={jobSearch} setSearch={setJobSearch} category={categoryFilter} setCategory={setCategoryFilter} experience={experienceFilter} setExperience={setExperienceFilter} requiredSkill={requiredSkillFilter} setRequiredSkill={setRequiredSkillFilter} technology={technologyFilter} setTechnology={setTechnologyFilter} certification={certificationFilter} setCertification={setCertificationFilter} education={educationFilter} setEducation={setEducationFilter} clearFilters={clearFilters} savedJobs={workspace.savedJobs} toggleSaved={toggleSaved} skills={workspace.skills} />}{section === "skills" && <SkillsView skills={workspace.skills} search={skillSearch} setSearch={setSkillSearch} newSkill={newSkill} setNewSkill={setNewSkill} newLevel={newLevel} setNewLevel={setNewLevel} newCategory={newCategory} setNewCategory={setNewCategory} addSkill={addSkill} removeSkill={removeSkill} />}{section === "resume" && <ResumeView workspace={workspace} handleResume={handleResume} verifyResume={verifyResume} busy={busy} goTo={goTo} />}{section === "career" && <CareerView recommendations={recommendations} setSelectedJob={setSelectedJob} goTo={goTo} />}{section === "saved" && <SavedView savedJobs={workspace.savedJobs} setSelectedJob={setSelectedJob} toggleSaved={toggleSaved} />}{section === "profile" && <ProfileView profile={workspace.profile} updateProfile={updateProfile} completion={completion} save={() => { setProfileSaved(true); showNotice("Profile saved"); }} saved={profileSaved} />}{section === "settings" && <SettingsView email={accountEmail} logout={logout} reset={() => { if (window.confirm("Reset your workspace? This cannot be undone.")) { updateWorkspace(blankWorkspace); showNotice("Workspace reset"); } }} />}{selectedJob && section !== "jobs" && <JobDetails job={selectedJob} skills={workspace.skills} saved={workspace.savedJobs.includes(selectedJob.title)} toggleSaved={toggleSaved} close={() => setSelectedJob(null)} />}</main></div>;
 }
 
-function PublicHome() { return <main className="min-h-screen bg-background px-6 py-7"><div className="mx-auto max-w-[1180px]"><div className="flex items-center justify-between"><Brand /><Button asChild className="bg-ink text-ink-foreground hover:bg-ink/90"><Link to="/auth">Sign in <ArrowRight className="ml-2 h-4 w-4" /></Link></Button></div><section className="grid items-center gap-14 py-20 lg:grid-cols-[1fr_0.9fr] lg:py-32"><div><p className="app-kicker text-cyan">IT career clarity</p><h1 className="mt-5 max-w-3xl font-display text-5xl font-extrabold leading-[0.98] text-ink md:text-7xl">Build the career your skills are ready for.</h1><p className="mt-7 max-w-xl text-lg leading-8 text-ink/60">Complete your profile, verify your resume, discover the right IT roles, and turn your next move into a practical plan.</p><div className="mt-9 flex flex-wrap gap-4"><Button asChild className="h-12 rounded-none bg-ink px-6 text-ink-foreground shadow-[5px_5px_0_var(--cyan)] hover:bg-ink/90"><Link to="/auth">Create your workspace <ArrowRight className="ml-2 h-4 w-4" /></Link></Button><Button asChild variant="ghost" className="h-12 text-ink"><Link to="/auth">Already registered? Sign in</Link></Button></div></div><div className="relative"><div className="absolute -inset-5 rotate-[-4deg] rounded-2xl bg-mint/50" /><div className="relative rounded-2xl bg-ink p-8 text-ink-foreground shadow-2xl"><p className="text-xs font-bold uppercase tracking-[0.18em] text-ink-foreground/45">Your career workspace</p><div className="mt-10 grid grid-cols-2 gap-3"><Stat label="IT roles" value={`${jobs.length}+`} /><Stat label="Skill paths" value="17" /><Stat label="Resume checks" value="6" /><Stat label="Match insights" value="24/7" /></div><div className="mt-8 rounded-lg bg-ink-foreground/5 p-4"><div className="flex items-center justify-between"><span className="text-xs text-ink-foreground/50">Cloud Engineer readiness</span><span className="font-display text-2xl font-bold text-cyan">78%</span></div><div className="mt-4 h-2 rounded-full bg-ink-foreground/10"><div className="h-full w-[78%] rounded-full bg-cyan" /></div></div></div></div></section></div></main> }
+function PublicHome() {
+  const steps = [
+    { n: "01", title: "Assess your starting point", copy: "Skills, experience, and goals" },
+    { n: "02", title: "See the real gap", copy: "Personalized role comparison" },
+    { n: "03", title: "Move forward with confidence", copy: "A roadmap you can actually follow" },
+  ];
+  const bars = [
+    { label: "Technical skills", value: 82 },
+    { label: "Soft skills", value: 64 },
+    { label: "Role readiness", value: 71 },
+  ];
+  return (
+    <main className="min-h-screen bg-[linear-gradient(120deg,var(--background)_60%,color-mix(in_oklab,var(--mint)_45%,var(--background)))] px-6 py-7">
+      <div className="mx-auto max-w-[1240px]">
+        <div className="flex items-center justify-between">
+          <Brand />
+          <nav className="flex items-center gap-8 text-sm font-medium text-ink/70">
+            <Link to="/auth" className="hidden hover:text-ink sm:block">Dashboard</Link>
+            <Link to="/auth" className="hidden hover:text-ink sm:block">New assessment</Link>
+            <Link to="/auth" className="text-ink hover:text-cyan">Log in</Link>
+          </nav>
+        </div>
+        <section className="grid items-center gap-16 py-16 lg:grid-cols-[1fr_0.95fr] lg:py-24">
+          <div>
+            <p className="app-kicker flex items-center gap-2 text-cyan"><Target className="h-3.5 w-3.5" /> Your next move, made clear</p>
+            <h1 className="mt-6 font-display text-5xl font-extrabold leading-[0.95] tracking-tight text-ink md:text-[4.6rem]">
+              Turn your<br />ambition<br /><span className="text-cyan">into a roadmap.</span>
+            </h1>
+            <p className="mt-7 max-w-md text-base leading-7 text-ink/55">Understand where you stand, see what the industry expects, and get a learning plan built around the career you want.</p>
+            <div className="mt-9 flex flex-wrap items-center gap-6">
+              <Button asChild className="h-12 rounded-none bg-ink px-6 text-ink-foreground shadow-[5px_5px_0_var(--mint)] hover:bg-ink/90"><Link to="/auth">Find my skill gaps <ArrowRight className="ml-2 h-4 w-4" /></Link></Button>
+              <Button asChild variant="ghost" className="h-12 text-ink"><Link to="/auth">I already have an account <ArrowRight className="ml-2 h-4 w-4" /></Link></Button>
+            </div>
+            <div className="mt-12 flex items-center gap-3">
+              <div className="flex -space-x-2">
+                {["AL", "JM", "SK", "+"].map((tag, index) => (
+                  <span key={tag} className={`flex h-7 w-7 items-center justify-center rounded-full border-2 border-background text-[0.6rem] font-bold ${index === 0 ? "bg-mint text-ink" : index === 1 ? "bg-cyan/30 text-ink" : index === 2 ? "bg-amber-200 text-ink" : "bg-ink text-ink-foreground"}`}>{tag}</span>
+                ))}
+              </div>
+              <span className="text-sm text-ink/50">Join 2,400+ students building their edge</span>
+            </div>
+          </div>
+          <div className="relative">
+            <div className="absolute -inset-6 rotate-6 rounded-3xl bg-mint/40" />
+            <div className="relative -rotate-2 rounded-2xl bg-ink p-8 text-ink-foreground shadow-2xl">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-ink-foreground/45">Your career snapshot</p>
+                <span className="text-[0.65rem] text-ink-foreground/35">Updated just now</span>
+              </div>
+              <div className="mt-8 flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-ink-foreground/60">Skill match</p>
+                  <p className="font-display text-6xl font-extrabold leading-none">72<span className="text-3xl text-cyan">%</span></p>
+                  <p className="mt-2 text-xs font-semibold text-mint">+12% this month</p>
+                </div>
+                <div className="flex h-24 w-24 items-center justify-center rounded-full" style={{ background: "conic-gradient(var(--mint) 0turn 0.72turn, color-mix(in oklab, var(--ink-foreground) 12%, transparent) 0.72turn 1turn)" }}>
+                  <span className="flex h-[74px] w-[74px] items-center justify-center rounded-full bg-ink font-display text-xl font-bold">72</span>
+                </div>
+              </div>
+              <div className="mt-8 space-y-3">
+                {bars.map((bar) => (
+                  <div key={bar.label} className="flex items-center gap-3">
+                    <span className="w-28 shrink-0 text-xs text-ink-foreground/60">{bar.label}</span>
+                    <span className="h-1.5 flex-1 rounded-full bg-ink-foreground/10"><span className="block h-full rounded-full bg-cyan" style={{ width: `${bar.value}%` }} /></span>
+                    <span className="w-9 text-right text-xs font-semibold">{bar.value}%</span>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-8 flex items-center gap-3 rounded-xl bg-ink-foreground/5 p-4">
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-mint/20 text-mint"><Compass className="h-4 w-4" /></span>
+                <div className="flex-1">
+                  <p className="text-[0.6rem] uppercase tracking-[0.15em] text-ink-foreground/40">Next on your roadmap</p>
+                  <p className="text-sm font-semibold">Master data storytelling</p>
+                </div>
+                <ArrowRight className="h-4 w-4 text-ink-foreground/50" />
+              </div>
+            </div>
+            <div className="absolute -bottom-6 -right-2 hidden items-center gap-3 rounded-xl bg-card px-4 py-3 shadow-xl md:flex">
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-mint/40 text-ink"><Target className="h-4 w-4" /></span>
+              <div>
+                <p className="text-sm font-bold text-ink">3 skills to unlock</p>
+                <p className="text-xs text-ink/50">to reach your target role</p>
+              </div>
+            </div>
+          </div>
+        </section>
+        <section className="grid gap-8 border-t border-ink/10 pt-8 md:grid-cols-3">
+          {steps.map((step) => (
+            <div key={step.n} className="flex gap-4">
+              <span className="font-display text-lg font-bold text-cyan">{step.n}</span>
+              <div>
+                <p className="text-sm font-semibold text-ink">{step.title}</p>
+                <p className="mt-1 text-xs text-ink/45">{step.copy}</p>
+              </div>
+            </div>
+          ))}
+        </section>
+      </div>
+    </main>
+  );
+}
 function Brand({ light = false }: { light?: boolean }) { return <div className="flex items-center gap-2.5"><span className="flex h-9 w-9 items-center justify-center rounded-lg bg-ink text-cyan shadow-[4px_4px_0_var(--cyan)]"><Compass className="h-5 w-5" /></span><span className={`font-display text-[1.22rem] font-bold tracking-tight ${light ? "text-sidebar-foreground" : "text-ink"}`}>skill<span className="text-cyan">wise</span></span></div> }
 function Stat({ label, value }: { label: string; value: string }) { return <div className="rounded-lg bg-ink-foreground/5 p-4"><span className="text-[0.65rem] uppercase tracking-[0.12em] text-ink-foreground/45">{label}</span><strong className="mt-2 block font-display text-2xl text-ink-foreground">{value}</strong></div> }
 function NavButton({ item, active, onClick }: { item: { id: Section; label: string; icon: typeof BriefcaseBusiness }; active: boolean; onClick: () => void }) { const Icon = item.icon; return <Button variant="ghost" onClick={onClick} className={`w-full justify-start gap-3 ${active ? "bg-sidebar-accent text-sidebar-foreground" : "text-sidebar-foreground/55 hover:bg-sidebar-accent hover:text-sidebar-foreground"}`}><Icon className="h-4 w-4" />{item.label}</Button> }
