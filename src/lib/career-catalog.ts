@@ -123,11 +123,6 @@ export const roleCatalog = {
   "CIO": ["IT Strategy", "Governance", "Leadership", "Risk Management"],
 } as const;
 
-const roleRequirements = Object.fromEntries(
-  Object.entries(roleCatalog).map(([role, skills]) => [role, skills.map((skill, index) => ({ skill, level: index < 2 ? "Intermediate" : "Beginner", weight: index < 2 ? 1.2 : 1 }))]),
-) as Record<RoleKey, Requirement[]>;
-
-
 export type RoleKey = keyof typeof roleCatalog
 
 const categoryFor = (title: string): JobCategory => {
