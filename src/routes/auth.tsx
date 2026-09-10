@@ -77,22 +77,15 @@ function AuthPage() {
 
     setBusy(true);
     const result = mode === "signin"
-      ? await supabase.auth.signInWithPassword({ email, password })
-      : await supabase.auth.signUp({ email, password, options: { data: { full_name: fullName.trim(), phone: phone.trim() } } });
+      ? await signIn(email, password, rememberMe)
+      : await registerAccount({ email, password, fullName, phone });
 
     if (result.error) {
-      setError(result.error.message);
+      setError(result.error);
       setBusy(false);
       return;
     }
 
-    if (mode === "signin" && !rememberMe) {
-      window.sessionStorage.setItem("skillwise-session-only", "true");
-      window.localStorage.setItem("skillwise-session-only", "true");
-    } else if (mode === "signin") {
-      window.sessionStorage.removeItem("skillwise-session-only");
-      window.localStorage.removeItem("skillwise-session-only");
-    }
     void navigate({ to: "/" });
     setBusy(false);
   }
