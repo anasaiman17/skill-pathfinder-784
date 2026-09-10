@@ -8,7 +8,7 @@ import { useEffect, useMemo, useState, type ChangeEvent, type ReactNode } from "
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { supabase } from "@/integrations/supabase/client";
+import { changePassword, getCurrentUser, signOut as localSignOut } from "@/lib/local-auth";
 import { allCatalogSkills, categories, experienceLevels, jobs, roleCatalog, type ExperienceLevel, type JobCategory, type JobRecord } from "@/lib/career-catalog";
 import { extractResumeText, inspectResumeText, type ParsedResume } from "@/lib/resume-parser";
 import { analyzeResume } from "@/lib/local-ai";
@@ -74,7 +74,7 @@ function Index() {
   const [profileSaved, setProfileSaved] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => { let active = true; void supabase.auth.getUser().then(async ({ data }) => { if (!active) return; const user = data.user; if (user) { const sessionOnly = window.localStorage.getItem("skillwise-session-only") === "true"; if (sessionOnly && window.sessionStorage.getItem("skillwise-session-only") !== "true") { await supabase.auth.signOut(); return; } const stored = readWorkspace(user.id); const metadata = user.user_metadata as { full_name?: string; phone?: string } | undefined; setUserId(user.id); setAccountEmail(user.email ?? ""); setWorkspace({ ...stored, profile: { ...stored.profile, fullName: stored.profile.fullName || metadata?.full_name || "", phone: stored.profile.phone || metadata?.phone || "" } }); } }); return () => { active = false; }; }, []);
+  useEffect(() => { const user = getCurrentUser(); if (!user) return; const stored = readWorkspace(user.id); setUserId(user.id); setAccountEmail(user.email); setWorkspace({ ...stored, profile: { ...stored.profile, fullName: stored.profile.fullName || user.fullName, phone: stored.profile.phone || user.phone } }); }, []);
   useEffect(() => { if (userId) window.localStorage.setItem(STORAGE_PREFIX + userId, JSON.stringify(workspace)); }, [userId, workspace]);
 
   const allSkills = useMemo(() => Array.from(new Set([...workspace.skills.map((skill) => skill.name), ...(workspace.resume.parsed ? Object.keys(skillAliases).filter((alias) => workspace.resume.parsed?.text.toLowerCase().includes(alias)).map((alias) => normalizeSkill(alias)) : [])])), [workspace.skills, workspace.resume.parsed]);
@@ -118,7 +118,7 @@ function Index() {
     } finally { setBusy(false); event.target.value = ""; }
   }
   function verifyResume() { const parsed = inspectResumeText(workspace.resume.text); const checks = { personal: Boolean(parsed.name || parsed.email || parsed.phone), education: Boolean(parsed.education), skills: allSkills.length > 0, experience: parsed.jobTitles.length > 0 || Boolean(workspace.profile.yearsExperience), certifications: parsed.certifications.length > 0, projects: parsed.projects.length > 0 }; const issues = [!checks.personal ? "Add a name, email, or phone number to the resume." : "", !checks.education ? "Education was not found in the resume." : "", !checks.skills ? "Add or describe at least one technical skill." : "", !checks.experience ? "Add a job title or experience history." : ""].filter(Boolean); const completed = Object.values(checks).filter(Boolean).length; const status: VerificationStatus = completed === 6 ? "Verified" : completed >= 3 ? "Needs review" : "Incomplete"; updateWorkspace({ resume: { ...workspace.resume, parsed, checks, issues, status } }); showNotice(status === "Verified" ? "Resume verified" : "Resume review is ready"); }
-  async function logout() { await supabase.auth.signOut(); setUserId(null); setWorkspace(blankWorkspace); showNotice("You have been signed out"); }
+  async function logout() { localSignOut(); setUserId(null); setWorkspace(blankWorkspace); showNotice("You have been signed out"); }
 
   if (!userId) return <PublicHome />;
   const navItems: { id: Section; label: string; icon: typeof BriefcaseBusiness }[] = [{ id: "dashboard", label: "Dashboard", icon: Compass }, { id: "jobs", label: "Jobs", icon: BriefcaseBusiness }, { id: "skills", label: "Skills", icon: Zap }, { id: "resume", label: "Resume", icon: FileText }, { id: "career", label: "Career", icon: Target }, { id: "saved", label: "Saved jobs", icon: Heart }, { id: "profile", label: "Profile", icon: UserRound }, { id: "settings", label: "Settings", icon: Settings2 }];
