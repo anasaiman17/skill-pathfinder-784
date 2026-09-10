@@ -4,7 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { supabase } from "@/integrations/supabase/client";
+import { getCurrentUser, registerAccount, resetPassword, signIn } from "@/lib/local-auth";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
