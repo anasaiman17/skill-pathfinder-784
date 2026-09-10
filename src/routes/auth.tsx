@@ -38,15 +38,8 @@ function AuthPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    let active = true;
-    void supabase.auth.getUser().then(({ data }) => {
-      if (active && data.user) void navigate({ to: "/" });
-      if (active) setCheckingSession(false);
-    });
-
-    return () => {
-      active = false;
-    };
+    if (getCurrentUser()) void navigate({ to: "/" });
+    setCheckingSession(false);
   }, [navigate]);
 
   function switchMode(nextMode: AuthMode) {
