@@ -4,7 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { supabase } from "@/integrations/supabase/client";
+import { getCurrentUser, registerAccount, resetPassword, signIn } from "@/lib/local-auth";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
@@ -38,15 +38,8 @@ function AuthPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    let active = true;
-    void supabase.auth.getUser().then(({ data }) => {
-      if (active && data.user) void navigate({ to: "/" });
-      if (active) setCheckingSession(false);
-    });
-
-    return () => {
-      active = false;
-    };
+    if (getCurrentUser()) void navigate({ to: "/" });
+    setCheckingSession(false);
   }, [navigate]);
 
   function switchMode(nextMode: AuthMode) {
@@ -84,22 +77,15 @@ function AuthPage() {
 
     setBusy(true);
     const result = mode === "signin"
-      ? await supabase.auth.signInWithPassword({ email, password })
-      : await supabase.auth.signUp({ email, password, options: { data: { full_name: fullName.trim(), phone: phone.trim() } } });
+      ? await signIn(email, password, rememberMe)
+      : await registerAccount({ email, password, fullName, phone });
 
     if (result.error) {
-      setError(result.error.message);
+      setError(result.error);
       setBusy(false);
       return;
     }
 
-    if (mode === "signin" && !rememberMe) {
-      window.sessionStorage.setItem("skillwise-session-only", "true");
-      window.localStorage.setItem("skillwise-session-only", "true");
-    } else if (mode === "signin") {
-      window.sessionStorage.removeItem("skillwise-session-only");
-      window.localStorage.removeItem("skillwise-session-only");
-    }
     void navigate({ to: "/" });
     setBusy(false);
   }
@@ -154,7 +140,7 @@ function AuthPage() {
             <label className="block text-sm font-semibold text-ink">Email address<span className="mt-2 flex items-center gap-2"><Mail className="h-4 w-4 text-ink/35" /><input className="app-input" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" autoComplete="email" required /></span></label>
              <label className="block text-sm font-semibold text-ink">Password<span className="mt-2 flex items-center gap-2"><LockKeyhole className="h-4 w-4 text-ink/35" /><input className="app-input" type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder={mode === "signin" ? "Your password" : "8+ characters, mixed case, number, symbol"} autoComplete={mode === "signin" ? "current-password" : "new-password"} minLength={mode === "signin" ? 6 : 8} required /></span></label>
             {mode === "register" && <label className="block text-sm font-semibold text-ink">Confirm password<span className="mt-2 flex items-center gap-2"><LockKeyhole className="h-4 w-4 text-ink/35" /><input className="app-input" type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} placeholder="Repeat your password" autoComplete="new-password" minLength={6} required /></span></label>}
-             {mode === "signin" && <div className="flex items-center justify-between gap-3 text-xs"><label className="flex items-center gap-2 text-ink/60"><input type="checkbox" checked={rememberMe} onChange={(event) => setRememberMe(event.target.checked)} /> Remember me</label><button type="button" onClick={() => { if (!email) { setError("Enter your email first."); return; } void supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/auth` }).then(({ error: resetError }) => setMessage(resetError ? resetError.message : "If an account exists, a reset link has been requested.")); }} className="font-semibold text-cyan hover:underline">Forgot password?</button></div>}
+             {mode === "signin" && <div className="flex items-center justify-between gap-3 text-xs"><label className="flex items-center gap-2 text-ink/60"><input type="checkbox" checked={rememberMe} onChange={(event) => setRememberMe(event.target.checked)} /> Remember me</label><button type="button" onClick={() => { if (!email) { setError("Enter your email first."); return; } const next = window.prompt("Set a new password for this device (8+ characters)"); if (!next || next.length < 8) { setError("Use at least 8 characters."); return; } void resetPassword(email, next).then((result) => { if (result.error) setError(result.error); else setMessage("Password updated. Sign in with your new password."); }); }} className="font-semibold text-cyan hover:underline">Forgot password?</button></div>}
              {mode === "register" && <label className="flex items-start gap-2 text-xs leading-5 text-ink/55"><input type="checkbox" className="mt-1" checked={terms} onChange={(event) => setTerms(event.target.checked)} /> I agree to the Terms & Conditions.</label>}
             {error && <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
             {message && <p role="status" className="rounded-md border border-cyan/25 bg-cyan/10 px-3 py-2 text-sm text-ink">{message}</p>}
